@@ -47,13 +47,14 @@ void Renderer::OnResize(uint32_t width, uint32_t height)
 	m_ImageData = new uint32_t[width * height];
 }
 
-void Renderer::Render()
+void Renderer::Render(const Camera& camera)
 {
+	Ray ray;
+	ray.Origin = camera.GetPosition();
 	for (uint32_t y = 0;y < m_FinalImage->GetHeight();y++) {
 		for (uint32_t x = 0;x < m_FinalImage->GetWidth();x++) {
-			glm::vec2 coord = { (float)x / m_FinalImage->GetWidth() ,(float)y / m_FinalImage->GetHeight() }; // 归一化坐标 [0,1]
-			coord = coord * 2.0f - 1.0f;    // 坐标映射到[-1,1]
-			glm::vec4 color = PerPixel(coord); //返回该像素的颜色
+			ray.Direction = camera.GetRayDirections()[x + y * m_FinalImage->GetWidth()];
+			glm::vec4 color = TraceRay(ray);  // 返回该像素的颜色
 			color = glm::clamp(color, glm::vec4(0.0f), glm::vec4(1.0f));  //将颜色的值限制在[0,1]内
 			m_ImageData[x + y * m_FinalImage->GetWidth()] = Utils::ConvertToRGBA(color);
 		}
@@ -61,11 +62,10 @@ void Renderer::Render()
 	m_FinalImage->SetData(m_ImageData);
 }
 
-// 传入像素的标准化坐标
-glm::vec4 Renderer::PerPixel(glm::vec2 coord)
+glm::vec4 Renderer::TraceRay(const Ray& ray)
 {
-	glm::vec3 rayOrigin(0.0f, 0.0f, 1.0f);                   // 光线位置在屏幕外，z轴正方向上
-	glm::vec3 rayDirection(coord.x, coord.y, -1.0f);         // 光线方向,从屏幕外射向屏幕上的该像素点
+	glm::vec3 rayOrigin = ray.Origin;                  
+	glm::vec3 rayDirection = ray.Direction;             
 	float radius = 0.5f;                                     // 球的半径
 	//球的方程：x^2+y^2+z^2=radius   球心坐标(0,0)
 	//float a = rayDirection.x * rayDirection.x + rayDirection.y * rayDirection.y + rayDirection.z * rayDirection.z;
@@ -75,7 +75,19 @@ glm::vec4 Renderer::PerPixel(glm::vec2 coord)
 	float b = 2.0f * glm::dot(rayOrigin, rayDirection);
 	float c = glm::dot(rayOrigin, rayOrigin) - radius * radius;
 	float delta = b * b - 4.0f * a * c;
-	if (delta >= 0.0f)
-		return glm::vec4(1, 0, 1, 1);   //在球范围内，染粉色
-	return glm::vec4(0, 0, 0, 1);     //不在球范围内，染黑色
+	if (delta < 0.0f)
+		return glm::vec4(0, 0, 0, 1);//不在球范围内，染黑色
+
+	float outPointT = (-b + glm::sqrt(delta)) / (2.0f * a);     // 出点的距离t
+	float inPointT = (-b - glm::sqrt(delta)) / (2.0f * a);      // 入点的距离t
+	glm::vec3 outPoint = rayOrigin + outPointT * rayDirection;  // 出点坐标
+	glm::vec3 inPoint = rayOrigin + inPointT * rayDirection;    // 入点坐标
+	glm::vec3 normal = glm::normalize(inPoint);                  // 法线
+
+	glm::vec3 lightDir = glm::normalize(glm::vec3(-1, -1, -1));  // 光线方向(-1, -1, -1); 类似光源在(1,1,1)处
+	float diffuse = glm::max(glm::dot(normal, -lightDir), 0.0f);  // 漫反射系数
+	glm::vec3 sphereColor(1, 0, 1);							     // 球的颜色
+	sphereColor *= diffuse;                                      // 漫反射颜色
+
+	return glm::vec4(sphereColor, 1);   //在球范围内，染粉色
 }

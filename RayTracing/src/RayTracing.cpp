@@ -11,7 +11,15 @@
 class ExampleLayer : public Walnut::Layer
 {
 public:
-
+	ExampleLayer()
+		:m_Camera(45.0f, 0.1f, 100.0f)
+	{
+		
+	}
+	virtual void OnUpdate(float ts) override
+	{
+		m_Camera.OnUpdate(ts);
+	}
 	virtual void OnUIRender() override
 	{
 		// 窗口1:Settings
@@ -33,20 +41,25 @@ public:
 			ImGui::Image(m_Image->GetDescriptorSet(), { (float)m_Image->GetWidth(),(float)m_Image->GetHeight() }, ImVec2(0, 1), ImVec2(1, 0));
 		ImGui::End();
 		ImGui::PopStyleVar();        // 恢复原来的窗口填充设置
+
+		Render();
 	}
 	void Render() {
 		Walnut::Timer timer;
 
 		m_Renderer.OnResize(m_ViewportWidth, m_ViewportHeight);
-		m_Renderer.Render();
+		m_Camera.OnResize(m_ViewportWidth, m_ViewportHeight);
+		m_Renderer.Render(m_Camera);
 
 		m_LastRenderTime = timer.ElapsedMillis();
 	}
 private:
 	float m_LastRenderTime = 0.0f;   // 记录渲染时间
 
-	uint32_t m_ViewportWidth, m_ViewportHeight;
+	uint32_t m_ViewportWidth = 0;
+	uint32_t m_ViewportHeight = 0;
 	Renderer m_Renderer;
+	Camera m_Camera;
 };
 
 Walnut::Application* Walnut::CreateApplication(int argc, char** argv)
