@@ -8,11 +8,16 @@ class ExampleLayer : public Walnut::Layer
 public:
 	virtual void OnUIRender() override
 	{
-		ImGui::Begin("Hello");
-		ImGui::Button("Button");
-		ImGui::End();
+		// 窗口1：Settings
+		ImGui::Begin("Settings");
 
-		ImGui::ShowDemoWindow();
+		ImGui::End();
+		// 窗口3：Viewport
+		ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));// 去掉边框间距
+		ImGui::Begin("Viewport");
+
+		ImGui::End();
+		ImGui::PopStyleVar();        // 恢复原来的窗口填充设置
 	}
 };
 
