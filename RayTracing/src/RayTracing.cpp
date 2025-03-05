@@ -5,6 +5,7 @@
 
 #include "Camera.h"
 #include "Renderer.h"
+#include "Scene.h"
 
 #include <iostream>
 
@@ -14,8 +15,19 @@ public:
 	ExampleLayer()
 		:m_Camera(45.0f, 0.1f, 100.0f)
 	{
+		Sphere sphere;
 		
+		sphere.Position = glm::vec3(2.0f, 0.0f, 0.0f);
+		sphere.Radius = 1.0f;
+		sphere.Color = glm::vec3(1.0f, 0.0f, 0.0f);
+		m_Scene.Spheres.push_back(sphere);
+
+		sphere.Position = glm::vec3(0.0f, 0.0f, 0.0f);
+		sphere.Radius = 1.0f;
+		sphere.Color = glm::vec3(2.0f, 1.0f, 0.0f);
+		m_Scene.Spheres.push_back(sphere);
 	}
+
 	virtual void OnUpdate(float ts) override
 	{
 		m_Camera.OnUpdate(ts);
@@ -49,7 +61,7 @@ public:
 
 		m_Renderer.OnResize(m_ViewportWidth, m_ViewportHeight);
 		m_Camera.OnResize(m_ViewportWidth, m_ViewportHeight);
-		m_Renderer.Render(m_Camera);
+		m_Renderer.Render(m_Scene,m_Camera);
 
 		m_LastRenderTime = timer.ElapsedMillis();
 	}
@@ -60,6 +72,7 @@ private:
 	uint32_t m_ViewportHeight = 0;
 	Renderer m_Renderer;
 	Camera m_Camera;
+	Scene m_Scene;
 };
 
 Walnut::Application* Walnut::CreateApplication(int argc, char** argv)
