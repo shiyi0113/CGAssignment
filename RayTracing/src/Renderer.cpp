@@ -67,16 +67,31 @@ glm::vec4 Renderer::PerPixel(uint32_t x,uint32_t y)
 	Ray ray;
 	ray.Origin = m_ActiveCamera->GetPosition();
 	ray.Direction = m_ActiveCamera->GetRayDirections()[x + y * m_FinalImage->GetWidth()];
-	HitPayload payload = TraceRay(ray);
+	glm::vec3 color{ 0.0f,0.0f,0.0f };
+	float multiplier = 1.0f;
+	int bounces = 2;
+	// 第一次是源光线，第二次是反射的光线
+	for (int i = 0;i < bounces;i++) {
+		HitPayload payload = TraceRay(ray);
 
-	if(payload.HitDistance<0)
-		return glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);  // 未击中任何物体，返回黑色
+		if (payload.HitDistance < 0.0f)
+		{
+			glm::vec3 skyColor = glm::vec3(0.0f, 0.0f, 0.0f);
+			color += skyColor * multiplier;
+			break;
+		}
 
-	glm::vec3 lightDir = glm::normalize(glm::vec3(-1, -1, -1));  // 光线方向(-1, -1, -1); 类似光源在(1,1,1)处
-	float diffuse = glm::max(glm::dot(payload.WorldNormal, -lightDir), 0.0f); // 漫反射系数
-	glm::vec3 sphereColor = m_ActiveScene->Spheres[payload.ObjectIndex].Color;					 // 球的颜色
-	sphereColor *= diffuse;                                      // 漫反射颜色
-	return glm::vec4(sphereColor, 1.0f);
+		glm::vec3 lightDir = glm::normalize(glm::vec3(-1, -1, -1));  // 光线方向(-1, -1, -1); 类似光源在(1,1,1)处
+		float diffuse = glm::max(glm::dot(payload.WorldNormal, -lightDir), 0.0f); // 漫反射系数
+		glm::vec3 sphereColor = m_ActiveScene->Spheres[payload.ObjectIndex].Color;					 // 球的颜色
+		sphereColor *= diffuse;                                      // 漫反射颜色
+		color += sphereColor* multiplier;                            // 累加颜色
+		multiplier *= 0.7f;
+		// 改变光线
+		ray.Origin = payload.WorldPosition + payload.WorldNormal + 0.0001f; //在击中点上加上一个微小的偏移
+		ray.Direction = glm::reflect(ray.Direction, payload.WorldNormal);   // 反射光线
+	}
+	return glm::vec4(color, 1.0f);
 }
 
 HitPayload Renderer::TraceRay(const Ray& ray)
@@ -100,7 +115,7 @@ HitPayload Renderer::TraceRay(const Ray& ray)
 		if (delta < 0.0f)
 			continue;  // 未击中这个球，继续下一个球
 		float inPointT = (-b - glm::sqrt(delta)) / (2.0f * a);      // 入点的距离t
-		if (inPointT < closestT) {
+		if (inPointT > 0.0f && inPointT < closestT) {
 			closestT = inPointT;
 			closeSphereIndex = (int)i;
 		}

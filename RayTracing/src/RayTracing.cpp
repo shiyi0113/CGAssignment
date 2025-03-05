@@ -17,7 +17,7 @@ public:
 	{
 		Sphere sphere;
 		
-		sphere.Position = glm::vec3(2.0f, 0.0f, 0.0f);
+		sphere.Position = glm::vec3(5.0f, 0.0f, 0.0f);
 		sphere.Radius = 1.0f;
 		sphere.Color = glm::vec3(1.0f, 0.0f, 0.0f);
 		m_Scene.Spheres.push_back(sphere);

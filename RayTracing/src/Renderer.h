@@ -28,7 +28,7 @@ public:
 	Renderer() = default;
 
 	void OnResize(uint32_t width, uint32_t height); //改变图像大小与窗口一致
-	void Render(const Scene& scene,const Camera &camera);   
+	void Render(const Scene& scene,const Camera& camera);   
 
 	std::shared_ptr<Walnut::Image> GetFinalImage()const { return m_FinalImage; } // 获取最终图像
 private:
