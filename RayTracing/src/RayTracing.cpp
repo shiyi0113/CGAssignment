@@ -43,7 +43,8 @@ public:
 
 	virtual void OnUpdate(float ts) override
 	{
-		m_Camera.OnUpdate(ts);
+		if (m_Camera.OnUpdate(ts))  // 若相机移动则重新积累
+			m_Renderer.ResetFrameIndex();   
 	}
 	virtual void OnUIRender() override
 	{
@@ -74,6 +75,13 @@ public:
 			ImGui::Separator();
 			ImGui::PopID();
 		}
+		ImGui::Text("Render Setting");
+		ImGui::Checkbox("Accumulate", &m_Renderer.GetSetting().Accumulate);
+		if (ImGui::Button("Reset"))
+		{
+			m_Renderer.ResetFrameIndex();
+		}
+		ImGui::Separator();
 		if (ImGui::Button("Render"))
 		{
 			Render();
