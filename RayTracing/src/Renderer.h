@@ -27,7 +27,6 @@ class Renderer
 {
 	struct Setting {
 		bool Accumulate = true;  // 是否累积渲染结果
-
 	};
 public:
 	Renderer() = default;
@@ -54,4 +53,5 @@ private:
 	const Scene* m_ActiveScene = nullptr;
 	const Camera* m_ActiveCamera = nullptr;
 	Setting m_Setting;
+	std::vector<uint32_t> m_ImageHorizontalIter, m_ImageVAerticalIter;
 };

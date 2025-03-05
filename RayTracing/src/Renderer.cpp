@@ -1,5 +1,5 @@
 #include "Renderer.h"
-
+#include <execution>
 namespace Utils {
 	static uint32_t ConvertToRGBA(const glm::vec4& color)
 	{
@@ -47,6 +47,13 @@ void Renderer::OnResize(uint32_t width, uint32_t height)
 	m_ImageData = new uint32_t[width * height];
 	delete[] m_AccumulationData;
 	m_AccumulationData = new glm::vec4[width * height];
+
+	m_ImageHorizontalIter.resize(width);
+	m_ImageVAerticalIter.resize(height);
+	for (uint32_t i = 0;i < width;i++)
+		m_ImageHorizontalIter[i] = i;
+	for (uint32_t i = 0;i < height;i++)
+		m_ImageVAerticalIter[i] = i;
 }
 
 void Renderer::Render(const Scene& scene,const Camera& camera)
@@ -55,15 +62,35 @@ void Renderer::Render(const Scene& scene,const Camera& camera)
 	m_ActiveCamera = &camera;
 	if (m_FrameIndex == 1)
 		memset(m_AccumulationData, 0, m_FinalImage->GetWidth() * m_FinalImage->GetHeight() * sizeof(glm::vec4));
+#define Multithreading 1
+#if Multithreading
+	std::for_each(std::execution::par, m_ImageVAerticalIter.begin(), m_ImageVAerticalIter.end(),
+		[&](uint32_t y)
+		{
+			std::for_each(std::execution::par, m_ImageHorizontalIter.begin(), m_ImageHorizontalIter.end(),
+				[this, y](uint32_t x)
+				{
+					glm::vec4 color = PerPixel(x, y);                             // 返回该像素的颜色
+					m_AccumulationData[x + y * m_FinalImage->GetWidth()] += color; // 累加颜色
+					glm::vec4 accumlatedColor = m_AccumulationData[x + y * m_FinalImage->GetWidth()];
+					accumlatedColor /= (float)m_FrameIndex;  // 平均颜色,累加几次除以几，防止过亮
+					accumlatedColor = glm::clamp(accumlatedColor, glm::vec4(0.0f), glm::vec4(1.0f));  // 将颜色的值限制在[0,1]内
+					m_ImageData[x + y * m_FinalImage->GetWidth()] = Utils::ConvertToRGBA(accumlatedColor);
+				});
+		});
+#else
 	for (uint32_t y = 0;y < m_FinalImage->GetHeight();y++) {
 		for (uint32_t x = 0;x < m_FinalImage->GetWidth();x++) {
 			glm::vec4 color = PerPixel(x, y);                             // 返回该像素的颜色
 			m_AccumulationData[x + y * m_FinalImage->GetWidth()] += color; // 累加颜色
-			glm::vec4 accumulationColor = m_AccumulationData[x + y * m_FinalImage->GetWidth()] / (float)m_FrameIndex;  // 平均颜色,累加几次除以几，防止过亮
-			accumulationColor = glm::clamp(accumulationColor, glm::vec4(0.0f), glm::vec4(1.0f));  // 将颜色的值限制在[0,1]内
-			m_ImageData[x + y * m_FinalImage->GetWidth()] = Utils::ConvertToRGBA(accumulationColor);
+			glm::vec4 accumlatedColor = m_AccumulationData[x + y * m_FinalImage->GetWidth()];
+			accumlatedColor /= (float)m_FrameIndex;  // 平均颜色,累加几次除以几，防止过亮
+			accumlatedColor = glm::clamp(accumlatedColor, glm::vec4(0.0f), glm::vec4(1.0f));  // 将颜色的值限制在[0,1]内
+			m_ImageData[x + y * m_FinalImage->GetWidth()] = Utils::ConvertToRGBA(accumlatedColor);
 		}
 	}
+#endif
+
 	m_FinalImage->SetData(m_ImageData);
 	if (m_Setting.Accumulate)
 		m_FrameIndex++;
