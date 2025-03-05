@@ -6,6 +6,7 @@
 #include "Camera.h"
 #include "Renderer.h"
 #include "Scene.h"
+#include <glm/gtc/type_ptr.hpp>
 
 #include <iostream>
 
@@ -17,15 +18,27 @@ public:
 	{
 		Sphere sphere;
 		
-		sphere.Position = glm::vec3(5.0f, 0.0f, 0.0f);
-		sphere.Radius = 1.0f;
-		sphere.Color = glm::vec3(1.0f, 0.0f, 0.0f);
-		m_Scene.Spheres.push_back(sphere);
-
 		sphere.Position = glm::vec3(0.0f, 0.0f, 0.0f);
 		sphere.Radius = 1.0f;
-		sphere.Color = glm::vec3(2.0f, 1.0f, 0.0f);
+		sphere.MaterialIndex = 0;
 		m_Scene.Spheres.push_back(sphere);
+
+		sphere.Position = glm::vec3(0.0f, -101.0f, 0.0f);
+		sphere.Radius = 100.0f;
+		sphere.MaterialIndex = 1;
+		m_Scene.Spheres.push_back(sphere);
+
+		Material material;
+
+		material.Albedo = glm::vec3(0.8f, 0.8f, 0.8f);
+		material.Roughness = 1.0f;
+		material.Metallic = 0.0f;
+		m_Scene.Materials.push_back(material);
+
+		material.Albedo = glm::vec3(1.0f, 0.0f, 0.8f);
+		material.Roughness = 1.0f;
+		material.Metallic = 0.0f;
+		m_Scene.Materials.push_back(material);
 	}
 
 	virtual void OnUpdate(float ts) override
@@ -36,11 +49,36 @@ public:
 	{
 		// ´°¿Ú1:Settings
 		ImGui::Begin("Settings");
+		ImGui::Text("Last render:%.3fms", m_LastRenderTime);
+		ImGui::Separator();
+		for (size_t i = 0;i < m_Scene.Spheres.size();i++)
+		{
+			ImGui::PushID(i);
+			Sphere& sphere = m_Scene.Spheres[i];
+			ImGui::Text("Sphere %d", i);
+			ImGui::DragFloat3("Position", glm::value_ptr(sphere.Position), 0.1f);
+			ImGui::DragFloat("Radius", &sphere.Radius, 0.1f, 0.0f, 60.0f);
+			ImGui::DragInt("MaterialIndex", &sphere.MaterialIndex, 1.0f, 0, (int)m_Scene.Materials.size() - 1);
+			ImGui::Separator();
+			ImGui::PopID();
+		}
+		for (size_t i = 0;i < m_Scene.Materials.size();i++)
+		{
+			ImGui::PushID(i);
+			Material& material = m_Scene.Materials[i];
+			ImGui::Text("Material %d", i);
+
+			ImGui::ColorEdit3("Albedo", glm::value_ptr(material.Albedo));
+			ImGui::DragFloat("Roughness", &material.Roughness, 0.1f, 0.0f, 1.0f);
+			ImGui::DragFloat("Metallic", &material.Metallic, 0.1f, 0.0f, 1.0f);
+			ImGui::Separator();
+			ImGui::PopID();
+		}
 		if (ImGui::Button("Render"))
 		{
 			Render();
 		}
-		ImGui::Text("Last render:%.3fms", m_LastRenderTime);
+		
 		ImGui::End();
 
 		// ´°¿Ú2:Viewport

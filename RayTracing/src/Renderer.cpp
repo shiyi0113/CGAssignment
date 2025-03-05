@@ -69,27 +69,29 @@ glm::vec4 Renderer::PerPixel(uint32_t x,uint32_t y)
 	ray.Direction = m_ActiveCamera->GetRayDirections()[x + y * m_FinalImage->GetWidth()];
 	glm::vec3 color{ 0.0f,0.0f,0.0f };
 	float multiplier = 1.0f;
-	int bounces = 2;
-	// 第一次是源光线，第二次是反射的光线
+	int bounces = 5;
+	// 第一次是源光线，后面是反射的光线
 	for (int i = 0;i < bounces;i++) {
 		HitPayload payload = TraceRay(ray);
 
 		if (payload.HitDistance < 0.0f)
 		{
-			glm::vec3 skyColor = glm::vec3(0.0f, 0.0f, 0.0f);
+			glm::vec3 skyColor = glm::vec3(0.6f, 0.7f, 0.9f);
 			color += skyColor * multiplier;
 			break;
 		}
+		Sphere sphere = m_ActiveScene->Spheres[payload.ObjectIndex];
+		Material material = m_ActiveScene->Materials[sphere.MaterialIndex];
 
 		glm::vec3 lightDir = glm::normalize(glm::vec3(-1, -1, -1));  // 光线方向(-1, -1, -1); 类似光源在(1,1,1)处
 		float diffuse = glm::max(glm::dot(payload.WorldNormal, -lightDir), 0.0f); // 漫反射系数
-		glm::vec3 sphereColor = m_ActiveScene->Spheres[payload.ObjectIndex].Color;					 // 球的颜色
+		glm::vec3 sphereColor = material.Albedo;					 // 球的颜色
 		sphereColor *= diffuse;                                      // 漫反射颜色
 		color += sphereColor* multiplier;                            // 累加颜色
-		multiplier *= 0.7f;
+		multiplier *= 0.5f;
 		// 改变光线
-		ray.Origin = payload.WorldPosition + payload.WorldNormal + 0.0001f; //在击中点上加上一个微小的偏移
-		ray.Direction = glm::reflect(ray.Direction, payload.WorldNormal);   // 反射光线
+		ray.Origin = payload.WorldPosition + payload.WorldNormal * 0.0001f; //在击中点上加上一个微小的偏移
+		ray.Direction = glm::reflect(ray.Direction, payload.WorldNormal + material.Roughness * Walnut::Random::Vec3(-0.5f, 0.5f));   // 反射光线+粗糙度
 	}
 	return glm::vec4(color, 1.0f);
 }
