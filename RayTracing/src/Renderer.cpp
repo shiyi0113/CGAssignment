@@ -49,36 +49,51 @@ void Renderer::OnResize(uint32_t width, uint32_t height)
 
 void Renderer::Render(const Scene& scene,const Camera& camera)
 {
-	Ray ray;
-	ray.Origin = camera.GetPosition();
+	m_ActiveScene = &scene;
+	m_ActiveCamera = &camera;
+
 	for (uint32_t y = 0;y < m_FinalImage->GetHeight();y++) {
 		for (uint32_t x = 0;x < m_FinalImage->GetWidth();x++) {
-			ray.Direction = camera.GetRayDirections()[x + y * m_FinalImage->GetWidth()];
-			glm::vec4 color = TraceRay(scene,ray);  // 返回该像素的颜色
-			color = glm::clamp(color, glm::vec4(0.0f), glm::vec4(1.0f));  //将颜色的值限制在[0,1]内
+			glm::vec4 color = PerPixel(x, y);                             // 返回该像素的颜色
+			color = glm::clamp(color, glm::vec4(0.0f), glm::vec4(1.0f));  // 将颜色的值限制在[0,1]内
 			m_ImageData[x + y * m_FinalImage->GetWidth()] = Utils::ConvertToRGBA(color);
 		}
 	}
 	m_FinalImage->SetData(m_ImageData);
 }
 
-glm::vec4 Renderer::TraceRay(const Scene& scene, const Ray& ray)
+glm::vec4 Renderer::PerPixel(uint32_t x,uint32_t y)
 {
-	if (scene.Spheres.size() == 0)
-		return glm::vec4(0, 0, 0, 1);  // 没有球，染黑色
+	Ray ray;
+	ray.Origin = m_ActiveCamera->GetPosition();
+	ray.Direction = m_ActiveCamera->GetRayDirections()[x + y * m_FinalImage->GetWidth()];
+	HitPayload payload = TraceRay(ray);
 
-	const Sphere* closesphere = nullptr;                 // 绘制近的那个球的像素颜色
+	if(payload.HitDistance<0)
+		return glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);  // 未击中任何物体，返回黑色
+
+	glm::vec3 lightDir = glm::normalize(glm::vec3(-1, -1, -1));  // 光线方向(-1, -1, -1); 类似光源在(1,1,1)处
+	float diffuse = glm::max(glm::dot(payload.WorldNormal, -lightDir), 0.0f); // 漫反射系数
+	glm::vec3 sphereColor = m_ActiveScene->Spheres[payload.ObjectIndex].Color;					 // 球的颜色
+	sphereColor *= diffuse;                                      // 漫反射颜色
+	return glm::vec4(sphereColor, 1.0f);
+}
+
+HitPayload Renderer::TraceRay(const Ray& ray)
+{
+	int closeSphereIndex = -1;                           
 	float closestT = std::numeric_limits<float>::max();  // 最近的距离
-	glm::vec3 Direction = ray.Direction;
-	for (const Sphere& sphere : scene.Spheres) {
+
+	for (size_t i = 0;i < m_ActiveScene->Spheres.size();i++) {
+		const Sphere& sphere = m_ActiveScene->Spheres[i];
 		glm::vec3 Origin = ray.Origin - sphere.Position;      // 根据球心坐标反向移动光线的起点            
 		float radius = sphere.Radius;                                     // 球的半径
 		//球的方程：x^2+y^2+z^2=radius   球心坐标(0,0)
 		//float a = rayDirection.x * rayDirection.x + rayDirection.y * rayDirection.y + rayDirection.z * rayDirection.z;
 		//float b = 2.0f * (rayOrigin.x * rayDirection.x + rayOrigin.y * rayDirection.y + rayOrigin.z * rayDirection.z);
 		//float c = rayOrigin.x * rayOrigin.x + rayOrigin.y * rayOrigin.y + rayOrigin.z * rayOrigin.z -  radius * radius;
-		float a = glm::dot(Direction, Direction);
-		float b = 2.0f * glm::dot(Origin, Direction);
+		float a = glm::dot(ray.Direction, ray.Direction);
+		float b = 2.0f * glm::dot(Origin, ray.Direction);
 		float c = glm::dot(Origin, Origin) - radius * radius;
 		float delta = b * b - 4.0f * a * c;
 
@@ -87,19 +102,32 @@ glm::vec4 Renderer::TraceRay(const Scene& scene, const Ray& ray)
 		float inPointT = (-b - glm::sqrt(delta)) / (2.0f * a);      // 入点的距离t
 		if (inPointT < closestT) {
 			closestT = inPointT;
-			closesphere = &sphere;
+			closeSphereIndex = (int)i;
 		}
 	}
-	if(closesphere == nullptr)
-		return glm::vec4(0, 0, 0, 1);  // 没有击中任何球，染黑色
-	glm::vec3 Origin = ray.Origin - closesphere->Position;
-	glm::vec3 inPoint = Origin + closestT * Direction;    // 入点坐标
-	glm::vec3 normal = glm::normalize(inPoint);                  // 法线
 
-	glm::vec3 lightDir = glm::normalize(glm::vec3(-1, -1, -1));  // 光线方向(-1, -1, -1); 类似光源在(1,1,1)处
-	float diffuse = glm::max(glm::dot(normal, -lightDir), 0.0f);  // 漫反射系数
-	glm::vec3 sphereColor = closesphere->Color;							     // 球的颜色
-	sphereColor *= diffuse;                                      // 漫反射颜色
+	if(closeSphereIndex == -1)
+		return Miss(ray);       
+	return ClosestHit(ray, closestT, closeSphereIndex);  // 击中了球 
+}
 
-	return glm::vec4(sphereColor, 1);   
+HitPayload Renderer::ClosestHit(const Ray& ray, float hitDistance, int objectIndex)
+{
+	HitPayload payload;
+	payload.HitDistance = hitDistance;
+	payload.ObjectIndex = objectIndex;
+	const Sphere& closeSphere = m_ActiveScene->Spheres[objectIndex];
+	glm::vec3 Origin = ray.Origin - closeSphere.Position;
+	payload.WorldPosition = Origin + hitDistance * ray.Direction;    // 入点坐标
+	payload.WorldNormal = glm::normalize(payload.WorldPosition);     // 法线
+	payload.WorldPosition += closeSphere.Position;                   // 世界坐标
+
+	return payload;
+}
+
+HitPayload Renderer::Miss(const Ray& ray)
+{
+	HitPayload payload;
+	payload.HitDistance = -1.0f;
+	return payload;
 }
