@@ -20,7 +20,7 @@ struct HitPayload
 	float HitDistance;               // 确定哪个相交点是最近的，从而决定渲染哪个物体
 	glm::vec3 WorldPosition;         // 光线与物体相交的世界坐标位置
 	glm::vec3 WorldNormal;           // 相交点处物体表面的法线向量
-	int ObjectIndex;            // 相交的物体在场景中的索引
+	int ObjectIndex;                 // 相交的物体在场景中的索引
 };
 
 class Renderer
@@ -28,6 +28,7 @@ class Renderer
 	struct Setting {
 		bool Accumulate = true;  // 是否累积渲染结果
 	};
+
 public:
 	Renderer() = default;
 

@@ -40,10 +40,3 @@ project "RayTracing"
       runtime "Release"
       optimize "On"
       symbols "On"
-
-   filter "configurations:Dist"
-      kind "WindowedApp"
-      defines { "WL_DIST" }
-      runtime "Release"
-      optimize "On"
-      symbols "Off"

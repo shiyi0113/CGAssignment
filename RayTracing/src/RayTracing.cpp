@@ -14,7 +14,7 @@ class ExampleLayer : public Walnut::Layer
 {
 public:
 	ExampleLayer()
-		:m_Camera(45.0f, 0.1f, 100.0f)
+		:m_Camera(39.3077f, 0.1f, 100.0f)
 	{
 		Sphere sphere;
 		
@@ -28,6 +28,11 @@ public:
 		sphere.MaterialIndex = 1;
 		m_Scene.Spheres.push_back(sphere);
 
+		sphere.Position = glm::vec3(0.0f, 3.0f, 0.0f);
+		sphere.Radius = 1.0f;
+		sphere.MaterialIndex = 2;
+		m_Scene.Spheres.push_back(sphere);
+
 		Material material;
 
 		material.Albedo = glm::vec3(0.8f, 0.8f, 0.8f);
@@ -38,6 +43,13 @@ public:
 		material.Albedo = glm::vec3(1.0f, 0.0f, 0.8f);
 		material.Roughness = 1.0f;
 		material.Metallic = 0.0f;
+		m_Scene.Materials.push_back(material);
+
+		material.Albedo = glm::vec3(0.6f, 0.7f, 0.2f);
+		material.Roughness = 1.0f;
+		material.Metallic = 0.0f;
+		material.EmmisionPower = 0.5f;
+		material.EmmisionColor = material.Albedo;
 		m_Scene.Materials.push_back(material);
 	}
 
@@ -72,6 +84,8 @@ public:
 			ImGui::ColorEdit3("Albedo", glm::value_ptr(material.Albedo));
 			ImGui::DragFloat("Roughness", &material.Roughness, 0.1f, 0.0f, 1.0f);
 			ImGui::DragFloat("Metallic", &material.Metallic, 0.1f, 0.0f, 1.0f);
+			ImGui::DragFloat("EmmisionPower", &material.EmmisionPower, 0.1f, 0.0f, 100.0f);
+			ImGui::ColorEdit3("EmmisionColor", glm::value_ptr(material.EmmisionColor));
 			ImGui::Separator();
 			ImGui::PopID();
 		}
