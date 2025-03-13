@@ -62,13 +62,18 @@ void Renderer::Render(const Scene& scene,const Camera& camera)
 	m_ActiveCamera = &camera;
 	if (m_FrameIndex == 1)
 		memset(m_AccumulationData, 0, m_FinalImage->GetWidth() * m_FinalImage->GetHeight() * sizeof(glm::vec4));
+
+	// 重置进度计数器
+	m_PixelsCompleted = 0;
+	const uint32_t totalPixels = m_FinalImage->GetWidth() * m_FinalImage->GetHeight();
+
 #define Multithreading 1
 #if Multithreading
 	std::for_each(std::execution::par, m_ImageVAerticalIter.begin(), m_ImageVAerticalIter.end(),
 		[&](uint32_t y)
 		{
 			std::for_each(std::execution::par, m_ImageHorizontalIter.begin(), m_ImageHorizontalIter.end(),
-				[this, y](uint32_t x)
+				[this, y, totalPixels](uint32_t x)
 				{
 					glm::vec4 color = PerPixel(x, y);                             // 返回该像素的颜色
 					m_AccumulationData[x + y * m_FinalImage->GetWidth()] += color; // 累加颜色
@@ -76,8 +81,18 @@ void Renderer::Render(const Scene& scene,const Camera& camera)
 					accumlatedColor /= (float)m_FrameIndex;  // 平均颜色,累加几次除以几，防止过亮
 					accumlatedColor = glm::clamp(accumlatedColor, glm::vec4(0.0f), glm::vec4(1.0f));  // 将颜色的值限制在[0,1]内
 					m_ImageData[x + y * m_FinalImage->GetWidth()] = Utils::ConvertToRGBA(accumlatedColor);
+
+					// 更新进度并打印
+					uint32_t completed = ++m_PixelsCompleted;
+					if (completed % (totalPixels / 100) == 0) // 每完成1%打印一次
+					{
+						float progress = (float)completed / totalPixels * 100.0f;
+						printf("\r渲染进度: %.1f%%", progress);
+						fflush(stdout);
+					}
 				});
 		});
+	printf("\n"); // 完成后换行
 #else
 	for (uint32_t y = 0;y < m_FinalImage->GetHeight();y++) {
 		for (uint32_t x = 0;x < m_FinalImage->GetWidth();x++) {
@@ -123,7 +138,6 @@ glm::vec4 Renderer::PerPixel(uint32_t x,uint32_t y)
 			break; // 无效材质索引保护
 		}
 		const Material& material = m_ActiveScene->Materials[payload.MaterialIndex];
-
 		accumulatedLight += material.GetEmission() * throughput;
 		throughput *= material.Albedo;
 		// 改变光线

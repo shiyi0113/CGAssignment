@@ -5,7 +5,7 @@
 #include <iostream>
 #include <memory>
 #include <glm/glm.hpp>
-
+#include <atomic>
 #include "Camera.h"
 #include "Scene.h"
 
@@ -59,4 +59,5 @@ private:
 	const Camera* m_ActiveCamera = nullptr;
 	Setting m_Setting;
 	std::vector<uint32_t> m_ImageHorizontalIter, m_ImageVAerticalIter;
+	std::atomic<uint32_t> m_PixelsCompleted{ 0 };
 };

@@ -31,6 +31,11 @@ public:
 		// 窗口1:Settings
 		ImGui::Begin("Settings");
 		ImGui::Text("Last render:%.3fms", m_LastRenderTime);
+		ImGui::Separator();
+		if (ImGui::Button("ReadFile"))
+		{
+			ReadFile();
+		}
 		ImGui::Text("Current Folder: %s", g_SceneFolderPath.empty() ? "Unspecified" : g_SceneFolderPath.c_str());
 		ImGui::Separator();
 		ImGui::Text("Render Setting");
@@ -43,11 +48,6 @@ public:
 		if (ImGui::Button("Render"))
 		{
 			Render();
-		}
-		ImGui::Separator();
-		if (ImGui::Button("ReadFile"))
-		{
-			ReadFile();
 		}
 		ImGui::End();
 
@@ -65,8 +65,8 @@ public:
 	void Render() {
 		Walnut::Timer timer;
 
-		m_Renderer.OnResize(m_ViewportWidth, m_ViewportHeight);
-		m_Camera.OnResize(m_ViewportWidth, m_ViewportHeight);
+		m_Renderer.OnResize(1024, 1024);
+		m_Camera.OnResize(1024, 1024);
 		m_Renderer.Render(m_Scene,m_Camera);
 
 		m_LastRenderTime = timer.ElapsedMillis();
@@ -77,10 +77,22 @@ public:
 			return;
 		std::string Flodername = std::filesystem::path(g_SceneFolderPath).filename().string();
 		m_Reader.LoadXml(g_SceneFolderPath + "/" + Flodername + ".xml");
-		m_Camera.SetPosition(glm::vec3(m_Reader.getCamera().eye.x, m_Reader.getCamera().eye.y, m_Reader.getCamera().eye.z));
-		m_Camera.SetDirection(glm::vec3(m_Reader.getCamera().lookat.x, m_Reader.getCamera().lookat.y, m_Reader.getCamera().lookat.z));
+		glm::vec3 eye = glm::vec3(m_Reader.getCamera().eye.x, m_Reader.getCamera().eye.y, m_Reader.getCamera().eye.z);
+		glm::vec3 lookat = glm::vec3(m_Reader.getCamera().lookat.x, m_Reader.getCamera().lookat.y, m_Reader.getCamera().lookat.z);
+		m_Camera.SetPosition(eye);
+		m_Camera.SetDirection(lookat - eye);
 		m_Camera.SetUpDirection(glm::vec3(m_Reader.getCamera().up.x, m_Reader.getCamera().up.y, m_Reader.getCamera().up.z));
+		// 打印相机参数
+		std::cout << "Camera Position: (" << m_Camera.GetPosition().x << ", " << m_Camera.GetPosition().y << ", " << m_Camera.GetPosition().z << ")\n";
+		std::cout << "Camera LookAt: (" << m_Camera.GetDirection().x << ", " << m_Camera.GetDirection().y << ", " << m_Camera.GetDirection().z << ")\n";
+		std::cout << "Camera UpDirection: (" << m_Camera.GetUpDirection().x << ", " << m_Camera.GetUpDirection().y << ", " << m_Camera.GetUpDirection().z << ")\n";
+
 		m_Reader.LoadModel(m_Scene, g_SceneFolderPath + "/" + Flodername + ".obj");
+		// 打印场景的网格、材质和三角形数
+		std::cout << "Scene has " << m_Scene.Meshes.size() << " meshes and " << m_Scene.Materials.size() << " materials.\n";
+		for (const auto& mesh : m_Scene.Meshes) {
+			std::cout << "Mesh has " << mesh.Triangles.size() << " triangles.\n";
+		}
 	}
 
 	std::string OpenFolderDialog() {
