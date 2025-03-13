@@ -9,13 +9,6 @@
 
 using namespace Walnut;
 
-Camera::Camera(float verticalFOV, float nearClip, float farClip)
-	: m_VerticalFOV(verticalFOV), m_NearClip(nearClip), m_FarClip(farClip)
-{
-	m_ForwardDirection = glm::vec3(0, 0, -1);
-	m_Position = glm::vec3(0, 0, 6);
-}
-
 bool Camera::OnUpdate(float ts)
 {
 	glm::vec2 mousePos = Input::GetMousePosition();
@@ -32,8 +25,7 @@ bool Camera::OnUpdate(float ts)
 
 	bool moved = false;
 
-	constexpr glm::vec3 upDirection(0.0f, 1.0f, 0.0f);
-	glm::vec3 rightDirection = glm::cross(m_ForwardDirection, upDirection);
+	glm::vec3 rightDirection = glm::cross(m_ForwardDirection, m_UpDirection);
 
 	float speed = 5.0f;
 
@@ -60,12 +52,12 @@ bool Camera::OnUpdate(float ts)
 	}
 	if (Input::IsKeyDown(KeyCode::Q))
 	{
-		m_Position -= upDirection * speed * ts;
+		m_Position -= m_UpDirection * speed * ts;
 		moved = true;
 	}
 	else if (Input::IsKeyDown(KeyCode::E))
 	{
-		m_Position += upDirection * speed * ts;
+		m_Position += m_UpDirection * speed * ts;
 		moved = true;
 	}
 
@@ -76,7 +68,7 @@ bool Camera::OnUpdate(float ts)
 		float yawDelta = delta.x * GetRotationSpeed();
 
 		glm::quat q = glm::normalize(glm::cross(glm::angleAxis(-pitchDelta, rightDirection),
-			glm::angleAxis(-yawDelta, glm::vec3(0.f, 1.0f, 0.0f))));
+			glm::angleAxis(-yawDelta, m_UpDirection)));
 		m_ForwardDirection = glm::rotate(q, m_ForwardDirection);
 
 		moved = true;
@@ -116,7 +108,7 @@ void Camera::RecalculateProjection()
 
 void Camera::RecalculateView()
 {
-	m_View = glm::lookAt(m_Position, m_Position + m_ForwardDirection, glm::vec3(0, 1, 0));
+	m_View = glm::lookAt(m_Position, m_Position + m_ForwardDirection, m_UpDirection);
 	m_InverseView = glm::inverse(m_View);
 }
 

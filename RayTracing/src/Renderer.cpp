@@ -1,4 +1,4 @@
-#include "Renderer.h"
+ï»¿#include "Renderer.h"
 #include <execution>
 namespace Utils {
 	static uint32_t ConvertToRGBA(const glm::vec4& color)
@@ -34,7 +34,7 @@ namespace Utils {
 void Renderer::OnResize(uint32_t width, uint32_t height)
 {
 	if (m_FinalImage) {
-		// ³¤¿íÒ»ÑùÊ±ÎŞĞè¸Ä±ä
+		// é•¿å®½ä¸€æ ·æ—¶æ— éœ€æ”¹å˜
 		if (m_FinalImage->GetWidth() == width && m_FinalImage->GetHeight() == height)
 			return;
 		m_FinalImage->Resize(width, height);
@@ -70,22 +70,22 @@ void Renderer::Render(const Scene& scene,const Camera& camera)
 			std::for_each(std::execution::par, m_ImageHorizontalIter.begin(), m_ImageHorizontalIter.end(),
 				[this, y](uint32_t x)
 				{
-					glm::vec4 color = PerPixel(x, y);                             // ·µ»Ø¸ÃÏñËØµÄÑÕÉ«
-					m_AccumulationData[x + y * m_FinalImage->GetWidth()] += color; // ÀÛ¼ÓÑÕÉ«
+					glm::vec4 color = PerPixel(x, y);                             // è¿”å›è¯¥åƒç´ çš„é¢œè‰²
+					m_AccumulationData[x + y * m_FinalImage->GetWidth()] += color; // ç´¯åŠ é¢œè‰²
 					glm::vec4 accumlatedColor = m_AccumulationData[x + y * m_FinalImage->GetWidth()];
-					accumlatedColor /= (float)m_FrameIndex;  // Æ½¾ùÑÕÉ«,ÀÛ¼Ó¼¸´Î³ıÒÔ¼¸£¬·ÀÖ¹¹ıÁÁ
-					accumlatedColor = glm::clamp(accumlatedColor, glm::vec4(0.0f), glm::vec4(1.0f));  // ½«ÑÕÉ«µÄÖµÏŞÖÆÔÚ[0,1]ÄÚ
+					accumlatedColor /= (float)m_FrameIndex;  // å¹³å‡é¢œè‰²,ç´¯åŠ å‡ æ¬¡é™¤ä»¥å‡ ï¼Œé˜²æ­¢è¿‡äº®
+					accumlatedColor = glm::clamp(accumlatedColor, glm::vec4(0.0f), glm::vec4(1.0f));  // å°†é¢œè‰²çš„å€¼é™åˆ¶åœ¨[0,1]å†…
 					m_ImageData[x + y * m_FinalImage->GetWidth()] = Utils::ConvertToRGBA(accumlatedColor);
 				});
 		});
 #else
 	for (uint32_t y = 0;y < m_FinalImage->GetHeight();y++) {
 		for (uint32_t x = 0;x < m_FinalImage->GetWidth();x++) {
-			glm::vec4 color = PerPixel(x, y);                             // ·µ»Ø¸ÃÏñËØµÄÑÕÉ«
-			m_AccumulationData[x + y * m_FinalImage->GetWidth()] += color; // ÀÛ¼ÓÑÕÉ«
+			glm::vec4 color = PerPixel(x, y);                             // è¿”å›è¯¥åƒç´ çš„é¢œè‰²
+			m_AccumulationData[x + y * m_FinalImage->GetWidth()] += color; // ç´¯åŠ é¢œè‰²
 			glm::vec4 accumlatedColor = m_AccumulationData[x + y * m_FinalImage->GetWidth()];
-			accumlatedColor /= (float)m_FrameIndex;  // Æ½¾ùÑÕÉ«,ÀÛ¼Ó¼¸´Î³ıÒÔ¼¸£¬·ÀÖ¹¹ıÁÁ
-			accumlatedColor = glm::clamp(accumlatedColor, glm::vec4(0.0f), glm::vec4(1.0f));  // ½«ÑÕÉ«µÄÖµÏŞÖÆÔÚ[0,1]ÄÚ
+			accumlatedColor /= (float)m_FrameIndex;  // å¹³å‡é¢œè‰²,ç´¯åŠ å‡ æ¬¡é™¤ä»¥å‡ ï¼Œé˜²æ­¢è¿‡äº®
+			accumlatedColor = glm::clamp(accumlatedColor, glm::vec4(0.0f), glm::vec4(1.0f));  // å°†é¢œè‰²çš„å€¼é™åˆ¶åœ¨[0,1]å†…
 			m_ImageData[x + y * m_FinalImage->GetWidth()] = Utils::ConvertToRGBA(accumlatedColor);
 		}
 	}
@@ -104,81 +104,149 @@ glm::vec4 Renderer::PerPixel(uint32_t x,uint32_t y)
 	ray.Origin = m_ActiveCamera->GetPosition();
 	ray.Direction = m_ActiveCamera->GetRayDirections()[x + y * m_FinalImage->GetWidth()];
 
-	glm::vec3 light{ 0.0f };
-	glm::vec3 multiplier{ 1.0f };
-	int bounces = 5;
-	// µÚÒ»´ÎÊÇÔ´¹âÏß£¬ºóÃæÊÇ·´ÉäµÄ¹âÏß
-	for (int i = 0;i < bounces;i++) {
+	glm::vec3 accumulatedLight{ 0.0f };
+	glm::vec3 throughput{ 1.0f };
+	uint32_t seed = x + y * m_FinalImage->GetWidth();
+	const int maxBounces = 5;
+	// ç¬¬ä¸€æ¬¡æ˜¯æºå…‰çº¿ï¼Œåé¢æ˜¯åå°„çš„å…‰çº¿
+	for (int bounce = 0; bounce < maxBounces; bounce++) {
 		HitPayload payload = TraceRay(ray);
 
 		if (payload.HitDistance < 0.0f)
 		{
 			glm::vec3 skyColor = glm::vec3(0.6f, 0.7f, 0.9f);
-			// light += skyColor * multiplier;
+			accumulatedLight += skyColor * throughput;
 			break;
 		}
-		Sphere sphere = m_ActiveScene->Spheres[payload.ObjectIndex];
-		Material material = m_ActiveScene->Materials[sphere.MaterialIndex];
+		if (payload.MaterialIndex < 0 || payload.MaterialIndex >= m_ActiveScene->Materials.size())
+		{
+			break; // æ— æ•ˆæè´¨ç´¢å¼•ä¿æŠ¤
+		}
+		const Material& material = m_ActiveScene->Materials[payload.MaterialIndex];
 
-		multiplier *= material.Albedo;
-		light += material.GetEmission() * multiplier;
-		// ¸Ä±ä¹âÏß
-		ray.Origin = payload.WorldPosition + payload.WorldNormal * 0.0001f; //ÔÚ»÷ÖĞµãÉÏ¼ÓÉÏÒ»¸öÎ¢Ğ¡µÄÆ«ÒÆ
-		//ray.Direction = glm::reflect(ray.Direction, payload.WorldNormal + material.Roughness * Walnut::Random::Vec3(-0.5f, 0.5f));   // ·´Éä¹âÏß+´Ö²Ú¶È
+		accumulatedLight += material.GetEmission() * throughput;
+		throughput *= material.Albedo;
+		// æ”¹å˜å…‰çº¿
+		ray.Origin = payload.WorldPosition + payload.WorldNormal * 0.0001f; //åœ¨å‡»ä¸­ç‚¹ä¸ŠåŠ ä¸Šä¸€ä¸ªå¾®å°çš„åç§»
+		//ray.Direction = glm::reflect(ray.Direction, payload.WorldNormal + material.Roughness * Walnut::Random::Vec3(-0.5f, 0.5f));   // åå°„å…‰çº¿+ç²—ç³™åº¦
 		ray.Direction = glm::normalize(payload.WorldNormal + Walnut::Random::InUnitSphere());
+		// ä¿„ç½—æ–¯è½®ç›˜èµŒç»ˆæ­¢
+		if (bounce > 3) {
+			float continueProbability = glm::max(throughput.r, glm::max(throughput.g, throughput.b));
+			if (Utils::RandomFloat(seed) >= continueProbability)
+				break;
+			throughput /= continueProbability;
+		}
 	}
-	return glm::vec4(light, 1.0f);
+	return glm::vec4(glm::clamp(accumulatedLight, 0.0f, 1.0f), 1.0f);
 }
 
 HitPayload Renderer::TraceRay(const Ray& ray)
 {
-	int closeSphereIndex = -1;                           
-	float closestT = std::numeric_limits<float>::max();  // ×î½üµÄ¾àÀë
+	int closestObjIndex = -1;
+	float closestT = std::numeric_limits<float>::max();  // æœ€è¿‘çš„è·ç¦»
 
-	for (size_t i = 0;i < m_ActiveScene->Spheres.size();i++) {
-		const Sphere& sphere = m_ActiveScene->Spheres[i];
-		glm::vec3 Origin = ray.Origin - sphere.Position;      // ¸ù¾İÇòĞÄ×ø±ê·´ÏòÒÆ¶¯¹âÏßµÄÆğµã            
-		float radius = sphere.Radius;                                     // ÇòµÄ°ë¾¶
-		//ÇòµÄ·½³Ì£ºx^2+y^2+z^2=radius   ÇòĞÄ×ø±ê(0,0)
-		//float a = rayDirection.x * rayDirection.x + rayDirection.y * rayDirection.y + rayDirection.z * rayDirection.z;
-		//float b = 2.0f * (rayOrigin.x * rayDirection.x + rayOrigin.y * rayDirection.y + rayOrigin.z * rayDirection.z);
-		//float c = rayOrigin.x * rayOrigin.x + rayOrigin.y * rayOrigin.y + rayOrigin.z * rayOrigin.z -  radius * radius;
-		float a = glm::dot(ray.Direction, ray.Direction);
-		float b = 2.0f * glm::dot(Origin, ray.Direction);
-		float c = glm::dot(Origin, Origin) - radius * radius;
-		float delta = b * b - 4.0f * a * c;
-
-		if (delta < 0.0f)
-			continue;  // Î´»÷ÖĞÕâ¸öÇò£¬¼ÌĞøÏÂÒ»¸öÇò
-		float inPointT = (-b - glm::sqrt(delta)) / (2.0f * a);      // ÈëµãµÄ¾àÀët
-		if (inPointT > 0.0f && inPointT < closestT) {
-			closestT = inPointT;
-			closeSphereIndex = (int)i;
+	// æ£€æŸ¥ç½‘æ ¼
+	for (size_t meshIdx = 0; meshIdx < m_ActiveScene->Meshes.size(); ++meshIdx) {
+		const auto& mesh = m_ActiveScene->Meshes[meshIdx];
+		for (size_t triIdx = 0; triIdx < mesh.Triangles.size(); ++triIdx) {
+			const auto& triangle = mesh.Triangles[triIdx];
+			float t;
+			if (RayTriangleIntersect(ray, triangle, t) && t < closestT) {
+				closestT = t;
+				closestObjIndex = meshIdx;
+			}
 		}
 	}
-
-	if(closeSphereIndex == -1)
+	if(closestObjIndex == -1)
 		return Miss(ray);       
-	return ClosestHit(ray, closestT, closeSphereIndex);  // »÷ÖĞÁËÇò 
+	return ClosestTriangleHit(ray,closestT, closestObjIndex);  
 }
 
-HitPayload Renderer::ClosestHit(const Ray& ray, float hitDistance, int objectIndex)
-{
+HitPayload Renderer::ClosestTriangleHit(const Ray& ray, float hitDistance, int meshIndex) {
 	HitPayload payload;
 	payload.HitDistance = hitDistance;
-	payload.ObjectIndex = objectIndex;
-	const Sphere& closeSphere = m_ActiveScene->Spheres[objectIndex];
-	glm::vec3 Origin = ray.Origin - closeSphere.Position;
-	payload.WorldPosition = Origin + hitDistance * ray.Direction;    // Èëµã×ø±ê
-	payload.WorldNormal = glm::normalize(payload.WorldPosition);     // ·¨Ïß
-	payload.WorldPosition += closeSphere.Position;                   // ÊÀ½ç×ø±ê
+	payload.ObjectIndex = meshIndex;
 
+	const Mesh& mesh = m_ActiveScene->Meshes[meshIndex];
+	// éå†æ‰€æœ‰ä¸‰è§’å½¢ï¼Œæ‰¾åˆ°ä¸å…‰çº¿ç›¸äº¤çš„ä¸‰è§’å½¢
+	for (const auto& triangle : mesh.Triangles) {
+		float t;
+		if (RayTriangleIntersect(ray, triangle, t) && t == hitDistance) {
+			// è®¡ç®—äº¤ç‚¹åæ ‡
+			payload.WorldPosition = ray.Origin + t * ray.Direction;
+
+			// è®¡ç®—æ³•çº¿ï¼ˆå¯ä»¥ä½¿ç”¨é¡¶ç‚¹æ³•çº¿æ’å€¼ï¼‰
+			glm::vec3 edge1 = triangle.V1.Position - triangle.V0.Position;
+			glm::vec3 edge2 = triangle.V2.Position - triangle.V0.Position;
+			payload.WorldNormal = glm::normalize(glm::cross(edge1, edge2));
+
+			// å¦‚æœä¸‰è§’å½¢æœ‰é¡¶ç‚¹æ³•çº¿ï¼Œå¯ä»¥ä½¿ç”¨æ’å€¼è®¡ç®—æ³•çº¿
+			if (triangle.V0.Normal != glm::vec3(0.0f) && triangle.V1.Normal != glm::vec3(0.0f) && triangle.V2.Normal != glm::vec3(0.0f)) {
+				glm::vec3 barycentricCoord = CalculateBarycentricCoord(payload.WorldPosition, triangle);
+				payload.WorldNormal = glm::normalize(
+					barycentricCoord.x * triangle.V0.Normal +
+					barycentricCoord.y * triangle.V1.Normal +
+					barycentricCoord.z * triangle.V2.Normal
+				);
+			}
+
+			break;
+		}
+	}
 	return payload;
 }
-
 HitPayload Renderer::Miss(const Ray& ray)
 {
 	HitPayload payload;
 	payload.HitDistance = -1.0f;
 	return payload;
+}
+// MÃ¶ller-Trumboreç®—æ³•
+bool Renderer::RayTriangleIntersect(const Ray& ray, const Triangle& triangle, float& t)
+{
+	const float EPSILON = 0.0000001f;
+	glm::vec3 edge1 = triangle.V1.Position - triangle.V0.Position;
+	glm::vec3 edge2 = triangle.V2.Position - triangle.V0.Position;
+
+	glm::vec3 h = glm::cross(ray.Direction, edge2);
+	float a = glm::dot(edge1, h);
+
+	if (a > -EPSILON && a < EPSILON)
+		return false;  // å°„çº¿ä¸ä¸‰è§’å½¢å¹³è¡Œ
+
+	float f = 1.0f / a;
+	glm::vec3 s = ray.Origin - triangle.V0.Position;
+	float u = f * glm::dot(s, h);
+
+	if (u < 0.0 || u > 1.0)
+		return false;
+
+	glm::vec3 q = glm::cross(s, edge1);
+	float v = f * glm::dot(ray.Direction, q);
+
+	if (v < 0.0 || u + v > 1.0)
+		return false;
+
+	t = f * glm::dot(edge2, q);
+	return t > EPSILON;
+}
+
+glm::vec3 Renderer::CalculateBarycentricCoord(const glm::vec3& point, const Triangle& triangle) {
+	glm::vec3 v0 = triangle.V1.Position - triangle.V0.Position;
+	glm::vec3 v1 = triangle.V2.Position - triangle.V0.Position;
+	glm::vec3 v2 = point - triangle.V0.Position;
+
+	float d00 = glm::dot(v0, v0);
+	float d01 = glm::dot(v0, v1);
+	float d11 = glm::dot(v1, v1);
+	float d20 = glm::dot(v2, v0);
+	float d21 = glm::dot(v2, v1);
+
+	float denom = d00 * d11 - d01 * d01;
+	float v = (d11 * d20 - d01 * d21) / denom;
+	float w = (d00 * d21 - d01 * d20) / denom;
+	float u = 1.0f - v - w;
+
+	return glm::vec3(u, v, w);
 }

@@ -21,6 +21,8 @@ struct HitPayload
 	glm::vec3 WorldPosition;         // 光线与物体相交的世界坐标位置
 	glm::vec3 WorldNormal;           // 相交点处物体表面的法线向量
 	int ObjectIndex;                 // 相交的物体在场景中的索引
+	int MaterialIndex;			   // 相交的物体的材质索引
+	bool IsMesh;					   // 是否是Mesh
 };
 
 class Renderer
@@ -41,9 +43,11 @@ public:
 private:
 	glm::vec4 PerPixel(uint32_t x, uint32_t y);     // 根据每个像素生成光线
 	HitPayload TraceRay(const Ray& ray);            // 根据光线绘制颜色  
-	HitPayload ClosestHit(const Ray& ray, float hitDistance,int objectIndex);  // 处理光线击中的最近的物体
+	HitPayload ClosestTriangleHit(const Ray& ray, float hitDistance, int meshIndex);  // 处理光线击中的最近的三角形
 	HitPayload Miss(const Ray& ray);                // 光线未与任何物体相交的处理
 
+	bool RayTriangleIntersect(const Ray& ray, const Triangle& triangle, float& t);
+	glm::vec3 CalculateBarycentricCoord(const glm::vec3& point, const Triangle& triangle);
 private:
 	std::shared_ptr<Walnut::Image> m_FinalImage;
 	uint32_t* m_ImageData = nullptr;

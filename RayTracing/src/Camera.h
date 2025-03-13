@@ -6,8 +6,10 @@
 class Camera
 {
 public:
-	Camera(float verticalFOV, float nearClip, float farClip);
-
+	Camera::Camera(float verticalFOV, float nearClip, float farClip)
+		: m_VerticalFOV(verticalFOV), m_NearClip(nearClip), m_FarClip(farClip)
+	{
+	}
 	bool OnUpdate(float ts);
 	void OnResize(uint32_t width, uint32_t height);
 
@@ -18,6 +20,11 @@ public:
 
 	const glm::vec3& GetPosition() const { return m_Position; }
 	const glm::vec3& GetDirection() const { return m_ForwardDirection; }
+	const glm::vec3& GetUpDirection() const { return m_UpDirection; }
+
+	void SetPosition(const glm::vec3& position) { m_Position = position; RecalculateView(); }
+	void SetDirection(const glm::vec3& direction) { m_ForwardDirection = direction; RecalculateView(); }
+	void SetUpDirection(const glm::vec3& upDirection) { m_UpDirection = upDirection; RecalculateView(); }
 
 	const std::vector<glm::vec3>& GetRayDirections() const { return m_RayDirections; }
 
@@ -36,8 +43,9 @@ private:
 	float m_NearClip = 0.1f;
 	float m_FarClip = 100.0f;
 
-	glm::vec3 m_Position{ 0.0f, 0.0f, 0.0f };
-	glm::vec3 m_ForwardDirection{ 0.0f, 0.0f, 0.0f };
+	glm::vec3 m_Position{ 0.0f, 0.0f, 6.0f };
+	glm::vec3 m_ForwardDirection{ 0.0f, 0.0f, -1.0f };
+	glm::vec3 m_UpDirection{ 0.0f, 1.0f, 0.0f };
 
 	// Cached ray directions
 	std::vector<glm::vec3> m_RayDirections;

@@ -6,8 +6,11 @@
 #include "Camera.h"
 #include "Renderer.h"
 #include "Scene.h"
-#include <glm/gtc/type_ptr.hpp>
+#include "tinyfiledialogs.h"
+#include "ReadFiles.h"
 
+#include <filesystem>
+#include <glm/gtc/type_ptr.hpp>
 #include <iostream>
 
 class ExampleLayer : public Walnut::Layer
@@ -16,41 +19,6 @@ public:
 	ExampleLayer()
 		:m_Camera(39.3077f, 0.1f, 100.0f)
 	{
-		Sphere sphere;
-		
-		sphere.Position = glm::vec3(0.0f, 0.0f, 0.0f);
-		sphere.Radius = 1.0f;
-		sphere.MaterialIndex = 0;
-		m_Scene.Spheres.push_back(sphere);
-
-		sphere.Position = glm::vec3(0.0f, -101.0f, 0.0f);
-		sphere.Radius = 100.0f;
-		sphere.MaterialIndex = 1;
-		m_Scene.Spheres.push_back(sphere);
-
-		sphere.Position = glm::vec3(0.0f, 3.0f, 0.0f);
-		sphere.Radius = 1.0f;
-		sphere.MaterialIndex = 2;
-		m_Scene.Spheres.push_back(sphere);
-
-		Material material;
-
-		material.Albedo = glm::vec3(0.8f, 0.8f, 0.8f);
-		material.Roughness = 1.0f;
-		material.Metallic = 0.0f;
-		m_Scene.Materials.push_back(material);
-
-		material.Albedo = glm::vec3(1.0f, 0.0f, 0.8f);
-		material.Roughness = 1.0f;
-		material.Metallic = 0.0f;
-		m_Scene.Materials.push_back(material);
-
-		material.Albedo = glm::vec3(0.6f, 0.7f, 0.2f);
-		material.Roughness = 1.0f;
-		material.Metallic = 0.0f;
-		material.EmmisionPower = 0.5f;
-		material.EmmisionColor = material.Albedo;
-		m_Scene.Materials.push_back(material);
 	}
 
 	virtual void OnUpdate(float ts) override
@@ -63,32 +31,8 @@ public:
 		// 窗口1:Settings
 		ImGui::Begin("Settings");
 		ImGui::Text("Last render:%.3fms", m_LastRenderTime);
+		ImGui::Text("Current Folder: %s", g_SceneFolderPath.empty() ? "Unspecified" : g_SceneFolderPath.c_str());
 		ImGui::Separator();
-		for (size_t i = 0;i < m_Scene.Spheres.size();i++)
-		{
-			ImGui::PushID(i);
-			Sphere& sphere = m_Scene.Spheres[i];
-			ImGui::Text("Sphere %d", i);
-			ImGui::DragFloat3("Position", glm::value_ptr(sphere.Position), 0.1f);
-			ImGui::DragFloat("Radius", &sphere.Radius, 0.1f, 0.0f, 60.0f);
-			ImGui::DragInt("MaterialIndex", &sphere.MaterialIndex, 1.0f, 0, (int)m_Scene.Materials.size() - 1);
-			ImGui::Separator();
-			ImGui::PopID();
-		}
-		for (size_t i = 0;i < m_Scene.Materials.size();i++)
-		{
-			ImGui::PushID(i);
-			Material& material = m_Scene.Materials[i];
-			ImGui::Text("Material %d", i);
-
-			ImGui::ColorEdit3("Albedo", glm::value_ptr(material.Albedo));
-			ImGui::DragFloat("Roughness", &material.Roughness, 0.1f, 0.0f, 1.0f);
-			ImGui::DragFloat("Metallic", &material.Metallic, 0.1f, 0.0f, 1.0f);
-			ImGui::DragFloat("EmmisionPower", &material.EmmisionPower, 0.1f, 0.0f, 100.0f);
-			ImGui::ColorEdit3("EmmisionColor", glm::value_ptr(material.EmmisionColor));
-			ImGui::Separator();
-			ImGui::PopID();
-		}
 		ImGui::Text("Render Setting");
 		ImGui::Checkbox("Accumulate", &m_Renderer.GetSetting().Accumulate);
 		if (ImGui::Button("Reset"))
@@ -100,7 +44,11 @@ public:
 		{
 			Render();
 		}
-		
+		ImGui::Separator();
+		if (ImGui::Button("ReadFile"))
+		{
+			ReadFile();
+		}
 		ImGui::End();
 
 		// 窗口2:Viewport
@@ -113,8 +61,6 @@ public:
 			ImGui::Image(m_Image->GetDescriptorSet(), { (float)m_Image->GetWidth(),(float)m_Image->GetHeight() }, ImVec2(0, 1), ImVec2(1, 0));
 		ImGui::End();
 		ImGui::PopStyleVar();        // 恢复原来的窗口填充设置
-
-		Render();
 	}
 	void Render() {
 		Walnut::Timer timer;
@@ -125,6 +71,23 @@ public:
 
 		m_LastRenderTime = timer.ElapsedMillis();
 	}
+	void ReadFile() {
+		g_SceneFolderPath = OpenFolderDialog();
+		if (g_SceneFolderPath.empty())
+			return;
+		std::string Flodername = std::filesystem::path(g_SceneFolderPath).filename().string();
+		m_Reader.LoadXml(g_SceneFolderPath + "/" + Flodername + ".xml");
+		m_Camera.SetPosition(glm::vec3(m_Reader.getCamera().eye.x, m_Reader.getCamera().eye.y, m_Reader.getCamera().eye.z));
+		m_Camera.SetDirection(glm::vec3(m_Reader.getCamera().lookat.x, m_Reader.getCamera().lookat.y, m_Reader.getCamera().lookat.z));
+		m_Camera.SetUpDirection(glm::vec3(m_Reader.getCamera().up.x, m_Reader.getCamera().up.y, m_Reader.getCamera().up.z));
+		m_Reader.LoadModel(m_Scene, g_SceneFolderPath + "/" + Flodername + ".obj");
+	}
+
+	std::string OpenFolderDialog() {
+		const char* path = tinyfd_selectFolderDialog("选择场景文件夹", nullptr);
+		return (path != nullptr) ? std::string(path) : "";
+	}
+
 private:
 	float m_LastRenderTime = 0.0f;   // 记录渲染时间
 
@@ -133,7 +96,10 @@ private:
 	Renderer m_Renderer;
 	Camera m_Camera;
 	Scene m_Scene;
+	ReadFiles m_Reader;
+	std::string g_SceneFolderPath;
 };
+
 
 Walnut::Application* Walnut::CreateApplication(int argc, char** argv)
 {

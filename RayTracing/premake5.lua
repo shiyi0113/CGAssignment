@@ -12,17 +12,25 @@ project "RayTracing"
       "../Walnut/vendor/imgui",
       "../Walnut/vendor/glfw/include",
       "../Walnut/vendor/glm",
-
+      "../Walnut/vendor/assimp/include",
       "../Walnut/Walnut/src",
 
       "%{IncludeDir.VulkanSDK}",
    }
-
+   libdirs
+   {
+      "../Walnut/vendor/assimp/lib"
+   }
    links
    {
-       "Walnut"
+       "Walnut",
+       "assimp-vc143-mt",
    }
-
+   postbuildcommands
+   {
+      '{COPY} "../Walnut/vendor/assimp/assimp-vc143-mt.dll" "%{cfg.targetdir}"'
+   }
+   
    targetdir ("../bin/" .. outputdir .. "/%{prj.name}")
    objdir ("../bin-int/" .. outputdir .. "/%{prj.name}")
 
