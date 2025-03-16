@@ -1,5 +1,6 @@
 ﻿#include "Renderer.h"
 #include <execution>
+
 namespace Utils {
 	static uint32_t ConvertToRGBA(const glm::vec4& color)
 	{
@@ -121,8 +122,9 @@ glm::vec4 Renderer::PerPixel(uint32_t x,uint32_t y)
 
 	glm::vec3 accumulatedLight{ 0.0f };
 	glm::vec3 throughput{ 1.0f };
-	uint32_t seed = x + y * m_FinalImage->GetWidth();
-	const int maxBounces = 5;
+	uint32_t seed = x + y * m_FinalImage->GetWidth();  //俄罗斯轮盘赌
+	const int maxBounces = 10;
+
 	// 第一次是源光线，后面是反射的光线
 	for (int bounce = 0; bounce < maxBounces; bounce++) {
 		HitPayload payload = TraceRay(ray);
@@ -130,7 +132,7 @@ glm::vec4 Renderer::PerPixel(uint32_t x,uint32_t y)
 		if (payload.HitDistance < 0.0f)
 		{
 			glm::vec3 skyColor = glm::vec3(0.6f, 0.7f, 0.9f);
-			accumulatedLight += skyColor * throughput;
+			//accumulatedLight += skyColor * throughput;
 			break;
 		}
 		if (payload.MaterialIndex < 0 || payload.MaterialIndex >= m_ActiveScene->Materials.size())
@@ -138,13 +140,14 @@ glm::vec4 Renderer::PerPixel(uint32_t x,uint32_t y)
 			break; // 无效材质索引保护
 		}
 		const Material& material = m_ActiveScene->Materials[payload.MaterialIndex];
+		
 		accumulatedLight += material.GetEmission() * throughput;
 		throughput *= material.Albedo;
 		// 改变光线
 		ray.Origin = payload.WorldPosition + payload.WorldNormal * 0.0001f; //在击中点上加上一个微小的偏移
 		//ray.Direction = glm::reflect(ray.Direction, payload.WorldNormal + material.Roughness * Walnut::Random::Vec3(-0.5f, 0.5f));   // 反射光线+粗糙度
 		ray.Direction = glm::normalize(payload.WorldNormal + Walnut::Random::InUnitSphere());
-		// 俄罗斯轮盘赌终止
+		// 俄罗斯轮盘赌
 		if (bounce > 3) {
 			float continueProbability = glm::max(throughput.r, glm::max(throughput.g, throughput.b));
 			if (Utils::RandomFloat(seed) >= continueProbability)
@@ -152,7 +155,8 @@ glm::vec4 Renderer::PerPixel(uint32_t x,uint32_t y)
 			throughput /= continueProbability;
 		}
 	}
-	return glm::vec4(glm::clamp(accumulatedLight, 0.0f, 1.0f), 1.0f);
+
+	return glm::vec4(accumulatedLight, 1.0f);
 }
 
 HitPayload Renderer::TraceRay(const Ray& ray)
@@ -181,8 +185,9 @@ HitPayload Renderer::ClosestTriangleHit(const Ray& ray, float hitDistance, int m
 	HitPayload payload;
 	payload.HitDistance = hitDistance;
 	payload.ObjectIndex = meshIndex;
-
+	
 	const Mesh& mesh = m_ActiveScene->Meshes[meshIndex];
+	payload.MaterialIndex = mesh.MaterialIndex;
 	// 遍历所有三角形，找到与光线相交的三角形
 	for (const auto& triangle : mesh.Triangles) {
 		float t;

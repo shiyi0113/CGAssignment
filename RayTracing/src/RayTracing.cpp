@@ -20,12 +20,6 @@ public:
 		:m_Camera(39.3077f, 0.1f, 100.0f)
 	{
 	}
-
-	virtual void OnUpdate(float ts) override
-	{
-		if (m_Camera.OnUpdate(ts))  // 若相机移动则重新积累
-			m_Renderer.ResetFrameIndex();   
-	}
 	virtual void OnUIRender() override
 	{
 		// 窗口1:Settings
@@ -46,6 +40,12 @@ public:
 		}
 		ImGui::Separator();
 		if (ImGui::Button("Render"))
+		{
+			// Render();
+			if (!g_SceneFolderPath.empty())
+				start = true;
+		}
+		if (start)
 		{
 			Render();
 		}
@@ -80,7 +80,7 @@ public:
 		glm::vec3 eye = glm::vec3(m_Reader.getCamera().eye.x, m_Reader.getCamera().eye.y, m_Reader.getCamera().eye.z);
 		glm::vec3 lookat = glm::vec3(m_Reader.getCamera().lookat.x, m_Reader.getCamera().lookat.y, m_Reader.getCamera().lookat.z);
 		m_Camera.SetPosition(eye);
-		m_Camera.SetDirection(lookat - eye);
+		m_Camera.SetDirection(glm::normalize(lookat - eye));
 		m_Camera.SetUpDirection(glm::vec3(m_Reader.getCamera().up.x, m_Reader.getCamera().up.y, m_Reader.getCamera().up.z));
 		// 打印相机参数
 		std::cout << "Camera Position: (" << m_Camera.GetPosition().x << ", " << m_Camera.GetPosition().y << ", " << m_Camera.GetPosition().z << ")\n";
@@ -92,7 +92,12 @@ public:
 		std::cout << "Scene has " << m_Scene.Meshes.size() << " meshes and " << m_Scene.Materials.size() << " materials.\n";
 		for (const auto& mesh : m_Scene.Meshes) {
 			std::cout << "Mesh has " << mesh.Triangles.size() << " triangles.\n";
+			std::cout << "Material Albedo:" << m_Scene.Materials[mesh.MaterialIndex].Albedo.x << "," << m_Scene.Materials[mesh.MaterialIndex].Albedo.y << "," << m_Scene.Materials[mesh.MaterialIndex].Albedo.z <<std::endl;
+			std::cout << "Material Emission:" << m_Scene.Materials[mesh.MaterialIndex].GetEmission().x << "," << m_Scene.Materials[mesh.MaterialIndex].GetEmission().y << "," << m_Scene.Materials[mesh.MaterialIndex].GetEmission().z << std::endl;
+			std::cout << "Material Metallic:" << m_Scene.Materials[mesh.MaterialIndex].Metallic << std::endl;
+			std::cout << "Material Roughness:" << m_Scene.Materials[mesh.MaterialIndex].Roughness << std::endl;
 		}
+		m_Renderer.ResetFrameIndex();
 	}
 
 	std::string OpenFolderDialog() {
@@ -110,6 +115,7 @@ private:
 	Scene m_Scene;
 	ReadFiles m_Reader;
 	std::string g_SceneFolderPath;
+	bool start = false;
 };
 
 

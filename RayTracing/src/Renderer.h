@@ -22,7 +22,6 @@ struct HitPayload
 	glm::vec3 WorldNormal;           // 相交点处物体表面的法线向量
 	int ObjectIndex;                 // 相交的物体在场景中的索引
 	int MaterialIndex;			   // 相交的物体的材质索引
-	bool IsMesh;					   // 是否是Mesh
 };
 
 class Renderer

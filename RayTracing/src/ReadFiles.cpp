@@ -81,16 +81,26 @@ Material ReadFiles::ConvertAiMaterial(aiMaterial* aiMat)
 
     // 获取材质名称
     if (aiMat->Get(AI_MATKEY_NAME, matName) == AI_SUCCESS) {
+        std::cout << "\n[材质名称]" << matName.C_Str() << std::endl;
         // 检查是否是XML中定义的发光材质
         if (!light.mtlname.empty() && light.mtlname == matName.C_Str()) {
-            mat.EmmisionColor = glm::vec3(light.radiance[0], light.radiance[1], light.radiance[2]);
-            mat.EmmisionPower = 1.0f;
+            float maxRadiance = std::max({ light.radiance[0], light.radiance[1], light.radiance[2] });
+            mat.EmissionColor = glm::normalize(glm::vec3(light.radiance[0], light.radiance[1], light.radiance[2]));
+            mat.EmissionPower = maxRadiance;
+            std::cout << "  - 发光材质: 强度=" << mat.EmissionPower
+                << ", 颜色=(" << mat.EmissionColor.r << ", "
+                << mat.EmissionColor.g << ", " << mat.EmissionColor.b << ")\n";
         }
     }
 
     // 基础颜色
     if (aiMat->Get(AI_MATKEY_COLOR_DIFFUSE, color) == AI_SUCCESS) {
         mat.Albedo = glm::vec3(color.r, color.g, color.b);
+        std::cout << "  - Albedo: (" << mat.Albedo.r << ", "
+            << mat.Albedo.g << ", " << mat.Albedo.b << ")\n";
+    }
+    else {
+        std::cout << "  - Albedo: 未找到，使用默认值\n";
     }
 
     // 粗糙度
@@ -129,14 +139,16 @@ void ReadFiles::LoadModel(Scene& scene, const std::string& path)
         if (aiMat->Get(AI_MATKEY_NAME, matName) == AI_SUCCESS) {
             if (light.mtlname == matName.C_Str()) {
                 // 设置发光属性
-                material.EmmisionColor = glm::vec3(
+                float maxRadiance = std::max({ light.radiance[0], light.radiance[1], light.radiance[2] });
+                material.EmissionColor = glm::normalize(glm::vec3(
                     light.radiance[0],
                     light.radiance[1],
                     light.radiance[2]
-                );
-                material.EmmisionPower = 1.0f;  // 设置发光强度为最大
+                ));
+                material.EmissionPower = maxRadiance;  // 设置发光强度为最大
             }
         }
+
         scene.Materials.push_back(material);
     }
     // 加载所有网格
