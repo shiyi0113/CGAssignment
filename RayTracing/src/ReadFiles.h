@@ -1,6 +1,7 @@
 #pragma once
 #include <string>
 #include <iostream>
+#include <vector>
 #include "tinyxml2.h"
 #include "Scene.h"
 #include "assimp/Importer.hpp"
@@ -28,11 +29,11 @@ public:
     bool LoadXml(const std::string& path);
     void LoadModel(Scene& scene, const std::string& path);
 	Read::Camera getCamera() { return camera; }
-	Read::Light getLight() { return light; }
+    std::vector<Read::Light> getLight() { return lights; }
 private:
     Material ConvertAiMaterial(aiMaterial* aiMat);
 private:
     Read::Camera camera;
-    Read::Light light;
+    std::vector<Read::Light> lights;
 };
 

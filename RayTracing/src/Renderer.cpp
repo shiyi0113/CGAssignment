@@ -51,13 +51,13 @@ void Renderer::OnResize(uint32_t width, uint32_t height)
 
 	m_ImageHorizontalIter.resize(width);
 	m_ImageVAerticalIter.resize(height);
-	for (uint32_t i = 0;i < width;i++)
+	for (uint32_t i = 0; i < width; i++)
 		m_ImageHorizontalIter[i] = i;
-	for (uint32_t i = 0;i < height;i++)
+	for (uint32_t i = 0; i < height; i++)
 		m_ImageVAerticalIter[i] = i;
 }
 
-void Renderer::Render(const Scene& scene,const Camera& camera)
+void Renderer::Render(const Scene& scene, const Camera& camera)
 {
 	m_ActiveScene = &scene;
 	m_ActiveCamera = &camera;
@@ -95,8 +95,8 @@ void Renderer::Render(const Scene& scene,const Camera& camera)
 		});
 	printf("\n"); // 完成后换行
 #else
-	for (uint32_t y = 0;y < m_FinalImage->GetHeight();y++) {
-		for (uint32_t x = 0;x < m_FinalImage->GetWidth();x++) {
+	for (uint32_t y = 0; y < m_FinalImage->GetHeight(); y++) {
+		for (uint32_t x = 0; x < m_FinalImage->GetWidth(); x++) {
 			glm::vec4 color = PerPixel(x, y);                             // 返回该像素的颜色
 			m_AccumulationData[x + y * m_FinalImage->GetWidth()] += color; // 累加颜色
 			glm::vec4 accumlatedColor = m_AccumulationData[x + y * m_FinalImage->GetWidth()];
@@ -110,11 +110,11 @@ void Renderer::Render(const Scene& scene,const Camera& camera)
 	m_FinalImage->SetData(m_ImageData);
 	if (m_Setting.Accumulate)
 		m_FrameIndex++;
-	else 
+	else
 		m_FrameIndex = 1;
 }
 
-glm::vec4 Renderer::PerPixel(uint32_t x,uint32_t y)
+glm::vec4 Renderer::PerPixel(uint32_t x, uint32_t y)
 {
 	Ray ray;
 	ray.Origin = m_ActiveCamera->GetPosition();
@@ -131,7 +131,7 @@ glm::vec4 Renderer::PerPixel(uint32_t x,uint32_t y)
 
 		if (payload.HitDistance < 0.0f)
 		{
-			glm::vec3 skyColor = glm::vec3(0.6f, 0.7f, 0.9f);
+			//glm::vec3 skyColor = glm::vec3(0.6f, 0.7f, 0.9f);
 			//accumulatedLight += skyColor * throughput;
 			break;
 		}
@@ -140,13 +140,32 @@ glm::vec4 Renderer::PerPixel(uint32_t x,uint32_t y)
 			break; // 无效材质索引保护
 		}
 		const Material& material = m_ActiveScene->Materials[payload.MaterialIndex];
-		
+
 		accumulatedLight += material.GetEmission() * throughput;
+
+		// 处理漫反射
 		throughput *= material.Albedo;
-		// 改变光线
+
+		// 处理镜面反射
+		glm::vec3 reflectedDirection = glm::reflect(ray.Direction, payload.WorldNormal);
+		glm::vec3 specular = material.SpecularColor * glm::pow(glm::max(glm::dot(payload.WorldNormal, reflectedDirection), 0.0f), material.Shininess);
+		accumulatedLight += specular * throughput;
+
+		// 处理透射
+		if (material.TransmissionColor != glm::vec3(1.0f)) {
+			float eta = 1.0f / material.RefractionIndex;
+			glm::vec3 refractedDirection = glm::refract(ray.Direction, payload.WorldNormal, eta);
+			ray.Direction = glm::normalize(refractedDirection);
+			throughput *= material.TransmissionColor;
+		}
+		else {
+			// 改变光线方向
+			ray.Direction = glm::normalize(payload.WorldNormal + Walnut::Random::InUnitSphere());
+		}
+
+		// 改变光线起点
 		ray.Origin = payload.WorldPosition + payload.WorldNormal * 0.0001f; //在击中点上加上一个微小的偏移
-		//ray.Direction = glm::reflect(ray.Direction, payload.WorldNormal + material.Roughness * Walnut::Random::Vec3(-0.5f, 0.5f));   // 反射光线+粗糙度
-		ray.Direction = glm::normalize(payload.WorldNormal + Walnut::Random::InUnitSphere());
+
 		// 俄罗斯轮盘赌
 		if (bounce > 3) {
 			float continueProbability = glm::max(throughput.r, glm::max(throughput.g, throughput.b));
@@ -156,7 +175,9 @@ glm::vec4 Renderer::PerPixel(uint32_t x,uint32_t y)
 		}
 	}
 
-	return glm::vec4(accumulatedLight, 1.0f);
+	// 应用伽马校正
+	glm::vec3 color = ApplyGammaCorrection(accumulatedLight, 2.2f);
+	return glm::vec4(color, 1.0f);
 }
 
 HitPayload Renderer::TraceRay(const Ray& ray)
@@ -176,16 +197,16 @@ HitPayload Renderer::TraceRay(const Ray& ray)
 			}
 		}
 	}
-	if(closestObjIndex == -1)
-		return Miss(ray);       
-	return ClosestTriangleHit(ray,closestT, closestObjIndex);  
+	if (closestObjIndex == -1)
+		return Miss(ray);
+	return ClosestTriangleHit(ray, closestT, closestObjIndex);
 }
 
 HitPayload Renderer::ClosestTriangleHit(const Ray& ray, float hitDistance, int meshIndex) {
 	HitPayload payload;
 	payload.HitDistance = hitDistance;
 	payload.ObjectIndex = meshIndex;
-	
+
 	const Mesh& mesh = m_ActiveScene->Meshes[meshIndex];
 	payload.MaterialIndex = mesh.MaterialIndex;
 	// 遍历所有三角形，找到与光线相交的三角形
@@ -268,4 +289,9 @@ glm::vec3 Renderer::CalculateBarycentricCoord(const glm::vec3& point, const Tria
 	float u = 1.0f - v - w;
 
 	return glm::vec3(u, v, w);
+}
+// 伽马校正
+glm::vec3  Renderer::ApplyGammaCorrection(const glm::vec3& color, float gamma)
+{
+	return glm::pow(color, glm::vec3(1.0f / gamma));
 }

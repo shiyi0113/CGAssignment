@@ -54,8 +54,6 @@ public:
 		// 窗口2:Viewport
 		ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));// 去掉边框间距
 		ImGui::Begin("Viewport");
-		m_ViewportWidth = (uint32_t)ImGui::GetContentRegionAvail().x;
-		m_ViewportHeight = (uint32_t)ImGui::GetContentRegionAvail().y;
 		auto m_Image = m_Renderer.GetFinalImage();
 		if (m_Image)
 			ImGui::Image(m_Image->GetDescriptorSet(), { (float)m_Image->GetWidth(),(float)m_Image->GetHeight() }, ImVec2(0, 1), ImVec2(1, 0));
@@ -65,8 +63,9 @@ public:
 	void Render() {
 		Walnut::Timer timer;
 
-		m_Renderer.OnResize(1024, 1024);
-		m_Camera.OnResize(1024, 1024);
+		m_Renderer.OnResize(m_Width, m_Height);
+		m_Camera.OnResize(m_Width, m_Height);
+		m_Camera.SetVerticalFOV(m_fov);
 		m_Renderer.Render(m_Scene,m_Camera);
 
 		m_LastRenderTime = timer.ElapsedMillis();
@@ -77,25 +76,34 @@ public:
 			return;
 		std::string Flodername = std::filesystem::path(g_SceneFolderPath).filename().string();
 		m_Reader.LoadXml(g_SceneFolderPath + "/" + Flodername + ".xml");
+
 		glm::vec3 eye = glm::vec3(m_Reader.getCamera().eye.x, m_Reader.getCamera().eye.y, m_Reader.getCamera().eye.z);
 		glm::vec3 lookat = glm::vec3(m_Reader.getCamera().lookat.x, m_Reader.getCamera().lookat.y, m_Reader.getCamera().lookat.z);
+		glm::vec3 up = glm::vec3(m_Reader.getCamera().up.x, m_Reader.getCamera().up.y, m_Reader.getCamera().up.z);
+		m_Width = (uint32_t)m_Reader.getCamera().width;
+		m_Height = (uint32_t)m_Reader.getCamera().height;
+		m_fov = m_Reader.getCamera().fovy;
+
 		m_Camera.SetPosition(eye);
 		m_Camera.SetDirection(glm::normalize(lookat - eye));
-		m_Camera.SetUpDirection(glm::vec3(m_Reader.getCamera().up.x, m_Reader.getCamera().up.y, m_Reader.getCamera().up.z));
+		m_Camera.SetUpDirection(up);
 		// 打印相机参数
 		std::cout << "Camera Position: (" << m_Camera.GetPosition().x << ", " << m_Camera.GetPosition().y << ", " << m_Camera.GetPosition().z << ")\n";
 		std::cout << "Camera LookAt: (" << m_Camera.GetDirection().x << ", " << m_Camera.GetDirection().y << ", " << m_Camera.GetDirection().z << ")\n";
 		std::cout << "Camera UpDirection: (" << m_Camera.GetUpDirection().x << ", " << m_Camera.GetUpDirection().y << ", " << m_Camera.GetUpDirection().z << ")\n";
-
+		
 		m_Reader.LoadModel(m_Scene, g_SceneFolderPath + "/" + Flodername + ".obj");
 		// 打印场景的网格、材质和三角形数
-		std::cout << "Scene has " << m_Scene.Meshes.size() << " meshes and " << m_Scene.Materials.size() << " materials.\n";
+		std::cout << "Scene has " << m_Scene.Meshes.size() << " meshes and " << m_Scene.Materials.size() << " materials\n";
 		for (const auto& mesh : m_Scene.Meshes) {
-			std::cout << "Mesh has " << mesh.Triangles.size() << " triangles.\n";
+			std::cout << "【Mesh has " << mesh.Triangles.size() << " triangles】\n";
 			std::cout << "Material Albedo:" << m_Scene.Materials[mesh.MaterialIndex].Albedo.x << "," << m_Scene.Materials[mesh.MaterialIndex].Albedo.y << "," << m_Scene.Materials[mesh.MaterialIndex].Albedo.z <<std::endl;
+			std::cout << "Material SpecularColor:" << m_Scene.Materials[mesh.MaterialIndex].SpecularColor.x << "," << m_Scene.Materials[mesh.MaterialIndex].SpecularColor.y << "," << m_Scene.Materials[mesh.MaterialIndex].SpecularColor.z << std::endl;
+			std::cout << "Material Shininess:" << m_Scene.Materials[mesh.MaterialIndex].Shininess << std::endl;
+			std::cout << "Material TransmissionColor:" << m_Scene.Materials[mesh.MaterialIndex].TransmissionColor.x << "," << m_Scene.Materials[mesh.MaterialIndex].TransmissionColor.y << "," << m_Scene.Materials[mesh.MaterialIndex].TransmissionColor.z << std::endl;
+			std::cout << "Material RefractionIndex:" << m_Scene.Materials[mesh.MaterialIndex].RefractionIndex << std::endl;
 			std::cout << "Material Emission:" << m_Scene.Materials[mesh.MaterialIndex].GetEmission().x << "," << m_Scene.Materials[mesh.MaterialIndex].GetEmission().y << "," << m_Scene.Materials[mesh.MaterialIndex].GetEmission().z << std::endl;
-			std::cout << "Material Metallic:" << m_Scene.Materials[mesh.MaterialIndex].Metallic << std::endl;
-			std::cout << "Material Roughness:" << m_Scene.Materials[mesh.MaterialIndex].Roughness << std::endl;
+			std::cout << std::endl;
 		}
 		m_Renderer.ResetFrameIndex();
 	}
@@ -108,8 +116,10 @@ public:
 private:
 	float m_LastRenderTime = 0.0f;   // 记录渲染时间
 
-	uint32_t m_ViewportWidth = 0;
-	uint32_t m_ViewportHeight = 0;
+	uint32_t m_Width = 0;
+	uint32_t m_Height = 0;
+	float m_fov = 45.0f;
+
 	Renderer m_Renderer;
 	Camera m_Camera;
 	Scene m_Scene;

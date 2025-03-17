@@ -4,17 +4,23 @@
 
 struct Material
 {
-	glm::vec3 Albedo{ 0.0f };   // 物体的基本颜色，光线在物体表面反射时的颜色
-	float Roughness = 1.0f;     // 粗糙度。[0,1] 0表示完全光滑，1表示完全粗糙
-	float Metallic = 0;		    // 金属度。[0,1] 0表示完全非金属，1表示完全金属.金属度越高，表面反射光线的能力越强，且反射光线的颜色与 Albedo 相同。
-																	      //金属度越低，表面反射光线的能力越弱，且反射光线的颜色与光源颜色相同。
-	float EmissionPower = 0.0f;		    // 发光度。
+	glm::vec3 Albedo{ 0.0f };        // 漫反射颜色    Kd
+	glm::vec3 SpecularColor{ 0.0f }; // 镜面反射颜色  Ks
+	float Shininess = 1.0f;          // 光泽度        Ns
+	glm::vec3 TransmissionColor{ 1.0f }; // 透射颜色    Tr
+	float RefractionIndex = 1.0f;    // 折射率        Ni
+
+	float EmissionPower = 0.0f;		    // 发光度
 	glm::vec3 EmissionColor{ 0.0f };	// 发光颜色
+
+	std::string DiffuseTexture;      // 漫反射纹理路径
+
 	glm::vec3 GetEmission() const
 	{
 		return EmissionColor * EmissionPower;
 	}
 };
+
 struct Vertex {
 	glm::vec3 Position;
 	glm::vec3 Normal;

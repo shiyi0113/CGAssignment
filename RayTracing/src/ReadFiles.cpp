@@ -12,19 +12,9 @@ bool ReadFiles::LoadXml(const std::string& path)
         std::cerr << "Error: " << doc.ErrorStr() << std::endl;
         return false;
     }
-    // 获取根元素
-    XMLElement* root = doc.RootElement();
-    if (!root) {
-        std::cerr << "No root element!" << std::endl;
-        return false;
-    }
-    // 验证根元素名称
-    if (strcmp(root->Name(), "scene") != 0) {
-        std::cerr << "Root element must be 'scene', found: " << root->Name() << std::endl;
-        return false;
-    }
+
     // 解析摄像机配置
-    XMLElement* cameraElem = root->FirstChildElement("camera");
+    XMLElement* cameraElem = doc.FirstChildElement("camera");
     if (cameraElem) {
         // 读取属性
         camera.type = cameraElem->Attribute("type");
@@ -57,9 +47,14 @@ bool ReadFiles::LoadXml(const std::string& path)
             upElem->QueryFloatAttribute("z", &camera.up.z);
         }
     }
+    else {
+        std::cerr << "No camera element found!" << std::endl;
+        return false;
+    }
     // 解析灯光配置
-    XMLElement* lightElem = root->FirstChildElement("light");
-    if (lightElem) {
+    XMLElement* lightElem = doc.FirstChildElement("light");
+    while (lightElem) {
+        Read::Light light;
         light.mtlname = lightElem->Attribute("mtlname");
         const char* radianceStr = lightElem->Attribute("radiance");
         if (radianceStr) {
@@ -69,6 +64,8 @@ bool ReadFiles::LoadXml(const std::string& path)
                 >> light.radiance[1] >> comma
                 >> light.radiance[2];
         }
+        lights.push_back(light);
+        lightElem = lightElem->NextSiblingElement("light");
     }
     return true;
 }
@@ -82,39 +79,46 @@ Material ReadFiles::ConvertAiMaterial(aiMaterial* aiMat)
     // 获取材质名称
     if (aiMat->Get(AI_MATKEY_NAME, matName) == AI_SUCCESS) {
         std::cout << "\n[材质名称]" << matName.C_Str() << std::endl;
-        // 检查是否是XML中定义的发光材质
-        if (!light.mtlname.empty() && light.mtlname == matName.C_Str()) {
-            float maxRadiance = std::max({ light.radiance[0], light.radiance[1], light.radiance[2] });
-            mat.EmissionColor = glm::normalize(glm::vec3(light.radiance[0], light.radiance[1], light.radiance[2]));
-            mat.EmissionPower = maxRadiance;
-            std::cout << "  - 发光材质: 强度=" << mat.EmissionPower
-                << ", 颜色=(" << mat.EmissionColor.r << ", "
-                << mat.EmissionColor.g << ", " << mat.EmissionColor.b << ")\n";
-        }
     }
 
-    // 基础颜色
+    // 基础颜色 (Kd)
     if (aiMat->Get(AI_MATKEY_COLOR_DIFFUSE, color) == AI_SUCCESS) {
         mat.Albedo = glm::vec3(color.r, color.g, color.b);
-        std::cout << "  - Albedo: (" << mat.Albedo.r << ", "
-            << mat.Albedo.g << ", " << mat.Albedo.b << ")\n";
-    }
-    else {
-        std::cout << "  - Albedo: 未找到，使用默认值\n";
+        std::cout << "  - Albedo: (" << mat.Albedo.r << ", " << mat.Albedo.g << ", " << mat.Albedo.b << ")\n";
     }
 
-    // 粗糙度
+    // 镜面反射颜色 (Ks)
+    if (aiMat->Get(AI_MATKEY_COLOR_SPECULAR, color) == AI_SUCCESS) {
+        mat.SpecularColor = glm::vec3(color.r, color.g, color.b);
+        std::cout << "  - SpecularColor: (" << mat.SpecularColor.r << ", " << mat.SpecularColor.g << ", " << mat.SpecularColor.b << ")\n";
+    }
+
+    // 光泽度 (Ns)
     float shininess;
     if (aiMat->Get(AI_MATKEY_SHININESS, shininess) == AI_SUCCESS) {
-        mat.Roughness = 1.0f - glm::clamp(shininess / 256.0f, 0.0f, 1.0f);
+        mat.Shininess = shininess;
+        std::cout << "  - Roughness: " << mat.Shininess << "\n";
     }
 
-    // 金属度
-    float metallic;
-    if (aiMat->Get(AI_MATKEY_METALLIC_FACTOR, metallic) == AI_SUCCESS) {
-        mat.Metallic = metallic;
+    // 透射颜色 (Tr)
+    if (aiMat->Get(AI_MATKEY_COLOR_TRANSPARENT, color) == AI_SUCCESS) {
+        mat.TransmissionColor = glm::vec3(color.r, color.g, color.b);
+        std::cout << "  - TransmissionColor: (" << mat.TransmissionColor.r << ", " << mat.TransmissionColor.g << ", " << mat.TransmissionColor.b << ")\n";
     }
 
+    // 折射率 (Ni)
+    float refraction;
+    if (aiMat->Get(AI_MATKEY_REFRACTI, refraction) == AI_SUCCESS) {
+        mat.RefractionIndex = refraction;
+        std::cout << "  - RefractionIndex: " << mat.RefractionIndex << "\n";
+    }
+
+    // 漫反射纹理 (map_Kd)
+    aiString texturePath;
+    if (aiMat->GetTexture(aiTextureType_DIFFUSE, 0, &texturePath) == AI_SUCCESS) {
+        mat.DiffuseTexture = texturePath.C_Str();
+        std::cout << "  - DiffuseTexture: " << mat.DiffuseTexture << "\n";
+    }
     return mat;
 }
 
@@ -137,18 +141,20 @@ void ReadFiles::LoadModel(Scene& scene, const std::string& path)
         // 检查是否是XML中定义的发光材质
         aiString matName;
         if (aiMat->Get(AI_MATKEY_NAME, matName) == AI_SUCCESS) {
-            if (light.mtlname == matName.C_Str()) {
-                // 设置发光属性
-                float maxRadiance = std::max({ light.radiance[0], light.radiance[1], light.radiance[2] });
-                material.EmissionColor = glm::normalize(glm::vec3(
-                    light.radiance[0],
-                    light.radiance[1],
-                    light.radiance[2]
-                ));
-                material.EmissionPower = maxRadiance;  // 设置发光强度为最大
+            for (const auto& light : lights) {
+                if (light.mtlname == matName.C_Str()) {
+                    // 设置发光属性
+                    float maxRadiance = std::max({ light.radiance[0], light.radiance[1], light.radiance[2] });
+                    material.EmissionColor = glm::normalize(glm::vec3(
+                        light.radiance[0],
+                        light.radiance[1],
+                        light.radiance[2]
+                    ));
+                    material.EmissionPower = maxRadiance;  // 设置发光强度为最大
+                    break;
+                }
             }
         }
-
         scene.Materials.push_back(material);
     }
     // 加载所有网格
@@ -157,7 +163,7 @@ void ReadFiles::LoadModel(Scene& scene, const std::string& path)
         Mesh mesh;
         mesh.MaterialIndex = aiMesh->mMaterialIndex;  // 保持材质索引的关联
 
-        // 处理顶点数据...
+        // 处理顶点数据
         for (unsigned j = 0; j < aiMesh->mNumFaces; j++) {
             aiFace& face = aiMesh->mFaces[j];
             Triangle tri;

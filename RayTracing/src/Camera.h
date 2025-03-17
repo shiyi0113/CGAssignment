@@ -21,10 +21,12 @@ public:
 	const glm::vec3& GetPosition() const { return m_Position; }
 	const glm::vec3& GetDirection() const { return m_ForwardDirection; }
 	const glm::vec3& GetUpDirection() const { return m_UpDirection; }
+	const float GetVerticalFOV() const { return m_VerticalFOV; }
 
 	void SetPosition(const glm::vec3& position) { m_Position = position; RecalculateView(); }
 	void SetDirection(const glm::vec3& direction) { m_ForwardDirection = direction; RecalculateView(); }
 	void SetUpDirection(const glm::vec3& upDirection) { m_UpDirection = upDirection; RecalculateView(); }
+	void SetVerticalFOV(const float& verticalfov) { m_VerticalFOV = verticalfov; RecalculateView(); }
 
 	const std::vector<glm::vec3>& GetRayDirections() const { return m_RayDirections; }
 

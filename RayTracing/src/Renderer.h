@@ -47,6 +47,7 @@ private:
 
 	bool RayTriangleIntersect(const Ray& ray, const Triangle& triangle, float& t);
 	glm::vec3 CalculateBarycentricCoord(const glm::vec3& point, const Triangle& triangle);
+	glm::vec3  ApplyGammaCorrection(const glm::vec3& color, float gamma);
 private:
 	std::shared_ptr<Walnut::Image> m_FinalImage;
 	uint32_t* m_ImageData = nullptr;
