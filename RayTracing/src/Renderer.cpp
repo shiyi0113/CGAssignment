@@ -123,7 +123,7 @@ glm::vec4 Renderer::PerPixel(uint32_t x, uint32_t y)
 	glm::vec3 throughput{ 1.0f };
 	uint32_t seed = x + y * m_FinalImage->GetWidth();
 	seed *= m_FrameIndex;
-	const int maxBounces = 10;
+	const int maxBounces = 5;
 
 	for (int bounce = 0; bounce < maxBounces; bounce++) {
 		seed *= bounce;
@@ -208,16 +208,24 @@ bool Renderer::RussianRoulette(glm::vec3& throughput, uint32_t& seed)
 
 HitPayload Renderer::TraceRay(const Ray& ray)
 {
+	HitPayload result;
 	// 如果场景有BVH加速结构
 	if (m_ActiveScene && m_ActiveScene->BVHRoot)
 	{
-		return TraceRayBVH(ray, m_ActiveScene->BVHRoot.get());
+		result = TraceRayBVH(ray, m_ActiveScene->BVHRoot.get());
 	}
-	// 否则使用暴力方法
-	return TraceRayBrute(ray);
+	else {
+		result = TraceRayBrute(ray);
+	}
+	// 解决法线反了的问题
+	if (glm::dot(result.WorldNormal, ray.Direction) > 0)
+	{
+		result.WorldNormal = -result.WorldNormal;
+	}
+	return result;
 }
 
-// 原来的暴力求交方法
+// 暴力求交方法
 HitPayload Renderer::TraceRayBrute(const Ray& ray)
 {
 	int closestObjIndex = -1;

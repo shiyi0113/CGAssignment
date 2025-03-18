@@ -80,7 +80,6 @@ Material ReadFiles::ConvertAiMaterial(aiMaterial* aiMat)
     if (aiMat->Get(AI_MATKEY_NAME, matName) == AI_SUCCESS) {
         std::cout << "\n[材质名称]" << matName.C_Str() << std::endl;
     }
-
     // 基础颜色 (Kd)
     if (aiMat->Get(AI_MATKEY_COLOR_DIFFUSE, color) == AI_SUCCESS) {
         mat.Albedo = glm::vec3(color.r, color.g, color.b);
