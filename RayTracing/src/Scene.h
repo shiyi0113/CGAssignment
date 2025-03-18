@@ -4,7 +4,8 @@
 #include <memory>
 #include <cfloat>
 #include <string>
-
+#include "stb_image.h"
+#include <iostream>
 struct Ray;
 // AABB结构
 struct AABB {
@@ -44,11 +45,65 @@ struct Material
 	float EmissionPower = 0.0f;		    // 发光度
 	glm::vec3 EmissionColor{ 0.0f };	// 发光颜色
 
-	std::string DiffuseTexture;      // 漫反射纹理路径
+	std::string DiffuseTexturePath;      // 漫反射纹理路径
+	std::vector<uint8_t> DiffuseTextureData; // 漫反射纹理数据
+	int TextureWidth, TextureHeight, TextureChannels;
 
 	glm::vec3 GetEmission() const
 	{
 		return EmissionColor * EmissionPower;
+	}
+	bool Material::LoadTexture(const std::string& sceneFolderPath)
+	{
+		std::string fullPath = sceneFolderPath + "/" + DiffuseTexturePath;
+		std::cout << "Loading texture: " << fullPath << std::endl;
+		if (DiffuseTexturePath.empty())
+			return false;
+
+		uint8_t* data = stbi_load(fullPath.c_str(), &TextureWidth, &TextureHeight, &TextureChannels, 3);
+		if (data)
+		{
+			DiffuseTextureData.assign(data, data + TextureWidth * TextureHeight * 3);
+			stbi_image_free(data);
+			std::cout << "Texture loaded successfully: " << fullPath << std::endl;
+			std::cout << "Texture size: " << TextureWidth << "x" << TextureHeight << " Channels: " << TextureChannels << std::endl;
+			std::cout << "First pixel data: " << (int)DiffuseTextureData[0] << ", " << (int)DiffuseTextureData[1] << ", " << (int)DiffuseTextureData[2] << std::endl;
+			return true;
+		}
+		std::cerr << "Failed to load texture: " << fullPath << std::endl;
+		return false;
+	}
+
+	glm::vec3 Material::SampleTexture(const glm::vec2& uv) const
+	{
+		if (DiffuseTextureData.empty())
+		{
+			std::cerr << "DiffuseTextureData is empty, returning Albedo" << std::endl;
+			return Albedo;
+		}
+
+		int x = static_cast<int>(uv.x * TextureWidth) % TextureWidth;
+		int y = static_cast<int>(uv.y * TextureHeight) % TextureHeight;
+
+		// 确保 x 和 y 是非负数
+		if (x < 0) x += TextureWidth;
+		if (y < 0) y += TextureHeight;
+
+		int index = (x + y * TextureWidth) * 3;
+
+		if (index < 0 || index >= DiffuseTextureData.size())
+		{
+			std::cerr << "Index out of range: " << index << std::endl;
+			std::cerr << "uv: (" << uv.x << ", " << uv.y << "), x: " << x << ", y: " << y << std::endl;
+			std::cerr << "TextureWidth: " << TextureWidth << ", TextureHeight: " << TextureHeight << std::endl;
+			return Albedo;
+		}
+
+		return glm::vec3(
+			DiffuseTextureData[index] / 255.0f,
+			DiffuseTextureData[index + 1] / 255.0f,
+			DiffuseTextureData[index + 2] / 255.0f
+		);
 	}
 };
 

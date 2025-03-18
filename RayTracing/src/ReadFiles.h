@@ -30,10 +30,12 @@ public:
     void LoadModel(Scene& scene, const std::string& path);
 	Read::Camera getCamera() { return camera; }
     std::vector<Read::Light> getLight() { return lights; }
+    void SetSceneFolderPath(const std::string& path) { m_SceneFolderPath = path; }
 private:
     Material ConvertAiMaterial(aiMaterial* aiMat);
 private:
     Read::Camera camera;
     std::vector<Read::Light> lights;
+    std::string m_SceneFolderPath;
 };
 

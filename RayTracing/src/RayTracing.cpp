@@ -74,6 +74,7 @@ public:
 		g_SceneFolderPath = OpenFolderDialog();
 		if (g_SceneFolderPath.empty())
 			return;
+		m_Reader.SetSceneFolderPath(g_SceneFolderPath);
 		std::string Flodername = std::filesystem::path(g_SceneFolderPath).filename().string();
 		m_Reader.LoadXml(g_SceneFolderPath + "/" + Flodername + ".xml");
 

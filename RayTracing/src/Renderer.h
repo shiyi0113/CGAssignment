@@ -23,6 +23,7 @@ struct HitPayload
 	glm::vec3 WorldNormal;           // 相交点处物体表面的法线向量
 	int ObjectIndex;                 // 相交的物体在场景中的索引
 	int MaterialIndex;			   // 相交的物体的材质索引
+	const Triangle* HitTriangle;
 };
 
 class Renderer
@@ -42,6 +43,9 @@ public:
 
 private:
 	glm::vec4 PerPixel(uint32_t x, uint32_t y);     // 根据每个像素生成光线
+	void HandleSpecularMaterial(Ray& ray, const HitPayload& payload, const Material& material, glm::vec3& throughput, uint32_t& seed);
+	void HandleDiffuseMaterial(Ray& ray, const HitPayload& payload, const Material& material, glm::vec3& throughput);
+	bool RussianRoulette(glm::vec3& throughput, uint32_t& seed);
 	HitPayload TraceRay(const Ray& ray);
 	HitPayload TraceRayBrute(const Ray& ray);
 	// 根据光线绘制颜色  
@@ -50,12 +54,13 @@ private:
 
 	bool RayTriangleIntersect(const Ray& ray, const Triangle& triangle, float& t);
 	glm::vec3 CalculateBarycentricCoord(const glm::vec3& point, const Triangle& triangle);
-	glm::vec3  ApplyGammaCorrection(const glm::vec3& color, float gamma);
+	glm::vec2 CalculateUV(const glm::vec3& point, const Triangle& triangle);
 
 	// BVH
 	HitPayload TraceRayBVH(const Ray& ray, const BVHNode* node);
 	bool IntersectBVH(const Ray& ray, const BVHNode* node, float& tMin, float& tMax);
 	HitPayload FindClosestHit(const Ray& ray, const BVHNode* node);
+	
 private:
 	std::shared_ptr<Walnut::Image> m_FinalImage;
 	uint32_t* m_ImageData = nullptr;

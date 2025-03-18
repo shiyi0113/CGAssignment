@@ -116,8 +116,9 @@ Material ReadFiles::ConvertAiMaterial(aiMaterial* aiMat)
     // Âþ·´ÉäÎÆÀí (map_Kd)
     aiString texturePath;
     if (aiMat->GetTexture(aiTextureType_DIFFUSE, 0, &texturePath) == AI_SUCCESS) {
-        mat.DiffuseTexture = texturePath.C_Str();
-        std::cout << "  - DiffuseTexture: " << mat.DiffuseTexture << "\n";
+        mat.DiffuseTexturePath = texturePath.C_Str();
+        std::cout << "  - DiffuseTexturePath: " << mat.DiffuseTexturePath << "\n";
+        mat.LoadTexture(m_SceneFolderPath);
     }
     return mat;
 }

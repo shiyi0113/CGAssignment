@@ -22,14 +22,6 @@ namespace Utils {
 		seed = PCG_Hash(seed);
 		return (float)seed / (float)std::numeric_limits<uint32_t>::max();
 	}
-	static glm::vec3 InUintSphere(uint32_t& seed)
-	{
-		return glm::normalize(glm::vec3(
-			RandomFloat(seed) * 2.0f - 1.0f,
-			RandomFloat(seed) * 2.0f - 1.0f,
-			RandomFloat(seed) * 2.0f - 1.0f)
-		);
-	}
 }
 
 void Renderer::OnResize(uint32_t width, uint32_t height)
@@ -129,71 +121,89 @@ glm::vec4 Renderer::PerPixel(uint32_t x, uint32_t y)
 
 	glm::vec3 accumulatedLight{ 0.0f };
 	glm::vec3 throughput{ 1.0f };
-	uint32_t seed = x + y * m_FinalImage->GetWidth();  //俄罗斯轮盘赌
-	const int maxBounces = 5;
+	uint32_t seed = x + y * m_FinalImage->GetWidth();
+	seed *= m_FrameIndex;
+	const int maxBounces = 10;
 
-	// 第一次是源光线，后面是反射的光线
 	for (int bounce = 0; bounce < maxBounces; bounce++) {
+		seed *= bounce;
 		HitPayload payload = TraceRay(ray);
 
-		if (payload.HitDistance < 0.0f)
+		if (payload.HitDistance < 0.0f || payload.MaterialIndex < 0 || payload.MaterialIndex >= m_ActiveScene->Materials.size())
 		{
-			//glm::vec3 skyColor = glm::vec3(0.6f, 0.7f, 0.9f);
-			//accumulatedLight += skyColor * throughput;
 			break;
 		}
-		if (payload.MaterialIndex < 0 || payload.MaterialIndex >= m_ActiveScene->Materials.size())
-		{
-			break; // 无效材质索引保护
-		}
+
 		const Material& material = m_ActiveScene->Materials[payload.MaterialIndex];
 
 		accumulatedLight += material.GetEmission() * throughput;
 
-		// 处理漫反射
-		throughput *= material.Albedo;
-
-		// 处理镜面反射
-		glm::vec3 reflectedDirection = glm::reflect(ray.Direction, payload.WorldNormal);
-		glm::vec3 specular = material.SpecularColor * glm::pow(glm::max(glm::dot(payload.WorldNormal, reflectedDirection), 0.0f), material.Shininess);
-		accumulatedLight += specular * throughput;
-
-		// 处理透射
-		if (material.TransmissionColor != glm::vec3(1.0f)) {
-			float eta = 1.0f / material.RefractionIndex;
-			glm::vec3 refractedDirection = glm::refract(ray.Direction, payload.WorldNormal, eta);
-			ray.Direction = glm::normalize(refractedDirection);
-			throughput *= material.TransmissionColor;
+		if (material.SpecularColor != glm::vec3(0.0f)) {
+			HandleSpecularMaterial(ray, payload, material, throughput, seed);
 		}
 		else {
-			// 改变光线方向
-			ray.Direction = glm::normalize(payload.WorldNormal + Walnut::Random::InUnitSphere());
+			HandleDiffuseMaterial(ray, payload, material, throughput);
 		}
 
-		// 改变光线起点
-		ray.Origin = payload.WorldPosition + payload.WorldNormal * 0.0001f; //在击中点上加上一个微小的偏移
-
-		// 俄罗斯轮盘赌
-		if (bounce > 3) {
-			float luminance = glm::dot(throughput, glm::vec3(0.2126f, 0.7152f, 0.0722f));
-
-			// 如果贡献度太小，直接终止
-			const float threshold = 0.001f;
-			if (luminance < threshold) {
-				break;
-			}
-
-			// 根据亮度自适应调整概率
-			float continueProbability = glm::clamp(luminance, 0.1f, 0.95f);
-
-			if (Utils::RandomFloat(seed) > continueProbability) {
-				break;
-			}
-
-			throughput /= continueProbability;
+		if (bounce > 3 && !RussianRoulette(throughput, seed)) {
+			break;
 		}
 	}
 	return glm::vec4(accumulatedLight, 1.0f);
+}
+
+void Renderer::HandleSpecularMaterial(Ray& ray, const HitPayload& payload, const Material& material, glm::vec3& throughput, uint32_t& seed)
+{
+	glm::vec3 reflectedDirection = glm::reflect(ray.Direction, payload.WorldNormal);
+	glm::vec3 randomInSphere = Walnut::Random::InUnitSphere();
+	float roughness = 1.0f / material.Shininess;
+	reflectedDirection = glm::normalize(reflectedDirection + randomInSphere * roughness);
+
+	ray.Direction = reflectedDirection;
+	ray.Origin = payload.WorldPosition + payload.WorldNormal * 0.0001f;
+
+	if (!material.DiffuseTextureData.empty()) {
+		glm::vec2 uv = CalculateUV(payload.WorldPosition, *payload.HitTriangle);
+		glm::vec3 albedo = material.SampleTexture(uv);
+		throughput *= albedo;
+	}
+	else {
+		throughput *= glm::vec3(1.0f);
+	}
+}
+
+void Renderer::HandleDiffuseMaterial(Ray& ray, const HitPayload& payload, const Material& material, glm::vec3& throughput)
+{
+	if (payload.HitTriangle) {
+		glm::vec2 uv = CalculateUV(payload.WorldPosition, *payload.HitTriangle);
+		if (!material.DiffuseTextureData.empty()) {
+			glm::vec3 albedo = material.SampleTexture(uv);
+			throughput *= albedo;
+		}
+		else {
+			throughput *= material.Albedo;
+		}
+	}
+	else {
+		throughput *= material.Albedo;
+	}
+	ray.Direction = glm::normalize(payload.WorldNormal + Walnut::Random::InUnitSphere());
+	ray.Origin = payload.WorldPosition + payload.WorldNormal * 0.0001f;
+}
+
+bool Renderer::RussianRoulette(glm::vec3& throughput, uint32_t& seed)
+{
+	float luminance = glm::dot(throughput, glm::vec3(0.2126f, 0.7152f, 0.0722f));
+	const float threshold = 0.001f;
+	if (luminance < threshold) {
+		return false;
+	}
+	float continueProbability = glm::clamp(luminance, 0.1f, 0.95f);
+	if (Utils::RandomFloat(seed) > continueProbability) {
+		return false;
+	}
+	throughput /= continueProbability;
+	return true;
 }
 
 HitPayload Renderer::TraceRay(const Ray& ray)
@@ -203,7 +213,6 @@ HitPayload Renderer::TraceRay(const Ray& ray)
 	{
 		return TraceRayBVH(ray, m_ActiveScene->BVHRoot.get());
 	}
-
 	// 否则使用暴力方法
 	return TraceRayBrute(ray);
 }
@@ -225,7 +234,6 @@ HitPayload Renderer::TraceRayBrute(const Ray& ray)
 			}
 		}
 	}
-
 	if (closestObjIndex == -1)
 		return Miss(ray);
 
@@ -261,17 +269,20 @@ HitPayload Renderer::ClosestTriangleHit(const Ray& ray, float hitDistance, int m
 				);
 			}
 
+			payload.HitTriangle = &triangle; // 存储指向相交三角形的指针
 			break;
 		}
 	}
 	return payload;
 }
+
 HitPayload Renderer::Miss(const Ray& ray)
 {
 	HitPayload payload;
 	payload.HitDistance = -1.0f;
 	return payload;
 }
+
 // Möller-Trumbore算法
 bool Renderer::RayTriangleIntersect(const Ray& ray, const Triangle& triangle, float& t)
 {
@@ -435,25 +446,19 @@ bool Renderer::IntersectBVH(const Ray& ray, const BVHNode* node, float& tMin, fl
 }
 
 // 在叶子节点中查找最近的交点
-HitPayload Renderer::FindClosestHit(const Ray& ray, const BVHNode* node)
-{
+HitPayload Renderer::FindClosestHit(const Ray& ray, const BVHNode* node) {
 	HitPayload payload;
 	payload.HitDistance = std::numeric_limits<float>::max();
 
 	// 遍历叶子节点中的所有三角形
-	for (size_t triIdx : node->triangleIndices)
-	{
+	for (size_t triIdx : node->triangleIndices) {
 		// 遍历所有网格找到对应的三角形
-		for (const auto& mesh : m_ActiveScene->Meshes)
-		{
-			if (triIdx < mesh.Triangles.size())
-			{
+		for (const auto& mesh : m_ActiveScene->Meshes) {
+			if (triIdx < mesh.Triangles.size()) {
 				const Triangle& triangle = mesh.Triangles[triIdx];
 				float t;
-				if (RayTriangleIntersect(ray, triangle, t))
-				{
-					if (t > 0 && t < payload.HitDistance)
-					{
+				if (RayTriangleIntersect(ray, triangle, t)) {
+					if (t > 0 && t < payload.HitDistance) {
 						payload.HitDistance = t;
 						payload.WorldPosition = ray.Origin + ray.Direction * t;
 
@@ -464,10 +469,19 @@ HitPayload Renderer::FindClosestHit(const Ray& ray, const BVHNode* node)
 
 						// 设置材质索引
 						payload.MaterialIndex = triangle.MaterialIndex;
+						payload.HitTriangle = &triangle; // 存储指向相交三角形的指针
 					}
 				}
 			}
 		}
 	}
 	return payload;
+}
+
+glm::vec2 Renderer::CalculateUV(const glm::vec3& point, const Triangle& triangle) {
+	glm::vec3 barycentricCoord = CalculateBarycentricCoord(point, triangle);
+	glm::vec2 uv = barycentricCoord.x * triangle.V0.TexCoord +
+		barycentricCoord.y * triangle.V1.TexCoord +
+		barycentricCoord.z * triangle.V2.TexCoord;
+	return uv;
 }
