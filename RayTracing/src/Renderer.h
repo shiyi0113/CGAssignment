@@ -6,6 +6,7 @@
 #include <memory>
 #include <glm/glm.hpp>
 #include <atomic>
+#include <stack>
 #include "Camera.h"
 #include "Scene.h"
 
@@ -41,13 +42,20 @@ public:
 
 private:
 	glm::vec4 PerPixel(uint32_t x, uint32_t y);     // 根据每个像素生成光线
-	HitPayload TraceRay(const Ray& ray);            // 根据光线绘制颜色  
+	HitPayload TraceRay(const Ray& ray);
+	HitPayload TraceRayBrute(const Ray& ray);
+	// 根据光线绘制颜色  
 	HitPayload ClosestTriangleHit(const Ray& ray, float hitDistance, int meshIndex);  // 处理光线击中的最近的三角形
 	HitPayload Miss(const Ray& ray);                // 光线未与任何物体相交的处理
 
 	bool RayTriangleIntersect(const Ray& ray, const Triangle& triangle, float& t);
 	glm::vec3 CalculateBarycentricCoord(const glm::vec3& point, const Triangle& triangle);
 	glm::vec3  ApplyGammaCorrection(const glm::vec3& color, float gamma);
+
+	// BVH
+	HitPayload TraceRayBVH(const Ray& ray, const BVHNode* node);
+	bool IntersectBVH(const Ray& ray, const BVHNode* node, float& tMin, float& tMax);
+	HitPayload FindClosestHit(const Ray& ray, const BVHNode* node);
 private:
 	std::shared_ptr<Walnut::Image> m_FinalImage;
 	uint32_t* m_ImageData = nullptr;
@@ -60,4 +68,9 @@ private:
 	Setting m_Setting;
 	std::vector<uint32_t> m_ImageHorizontalIter, m_ImageVAerticalIter;
 	std::atomic<uint32_t> m_PixelsCompleted{ 0 };
+	struct BVHTraversalInfo
+	{
+		const BVHNode* node;
+		float tMin;
+	};
 };

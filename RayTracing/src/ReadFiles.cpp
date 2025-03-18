@@ -190,4 +190,7 @@ void ReadFiles::LoadModel(Scene& scene, const std::string& path)
 
         scene.Meshes.push_back(mesh);
     }
+    std::cout << "\n[正在构建BVH加速结构]" << std::endl;
+    scene.BuildBVH();
+    std::cout << "BVH构建完成！" << std::endl;
 }

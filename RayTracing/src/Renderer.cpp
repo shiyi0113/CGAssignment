@@ -61,6 +61,13 @@ void Renderer::Render(const Scene& scene, const Camera& camera)
 {
 	m_ActiveScene = &scene;
 	m_ActiveCamera = &camera;
+	// 确保场景有BVH加速结构
+	if (!m_ActiveScene->BVHRoot)
+	{
+		std::cout << "警告：场景没有BVH加速结构，正在构建..." << std::endl;
+		const_cast<Scene*>(m_ActiveScene)->BuildBVH();
+		std::cout << "BVH构建完成！" << std::endl;
+	}
 	if (m_FrameIndex == 1)
 		memset(m_AccumulationData, 0, m_FinalImage->GetWidth() * m_FinalImage->GetHeight() * sizeof(glm::vec4));
 
@@ -123,7 +130,7 @@ glm::vec4 Renderer::PerPixel(uint32_t x, uint32_t y)
 	glm::vec3 accumulatedLight{ 0.0f };
 	glm::vec3 throughput{ 1.0f };
 	uint32_t seed = x + y * m_FinalImage->GetWidth();  //俄罗斯轮盘赌
-	const int maxBounces = 10;
+	const int maxBounces = 5;
 
 	// 第一次是源光线，后面是反射的光线
 	for (int bounce = 0; bounce < maxBounces; bounce++) {
@@ -168,24 +175,45 @@ glm::vec4 Renderer::PerPixel(uint32_t x, uint32_t y)
 
 		// 俄罗斯轮盘赌
 		if (bounce > 3) {
-			float continueProbability = glm::max(throughput.r, glm::max(throughput.g, throughput.b));
-			if (Utils::RandomFloat(seed) >= continueProbability)
+			float luminance = glm::dot(throughput, glm::vec3(0.2126f, 0.7152f, 0.0722f));
+
+			// 如果贡献度太小，直接终止
+			const float threshold = 0.001f;
+			if (luminance < threshold) {
 				break;
+			}
+
+			// 根据亮度自适应调整概率
+			float continueProbability = glm::clamp(luminance, 0.1f, 0.95f);
+
+			if (Utils::RandomFloat(seed) > continueProbability) {
+				break;
+			}
+
 			throughput /= continueProbability;
 		}
 	}
-
-	// 应用伽马校正
-	glm::vec3 color = ApplyGammaCorrection(accumulatedLight, 2.2f);
-	return glm::vec4(color, 1.0f);
+	return glm::vec4(accumulatedLight, 1.0f);
 }
 
 HitPayload Renderer::TraceRay(const Ray& ray)
 {
-	int closestObjIndex = -1;
-	float closestT = std::numeric_limits<float>::max();  // 最近的距离
+	// 如果场景有BVH加速结构
+	if (m_ActiveScene && m_ActiveScene->BVHRoot)
+	{
+		return TraceRayBVH(ray, m_ActiveScene->BVHRoot.get());
+	}
 
-	// 检查网格
+	// 否则使用暴力方法
+	return TraceRayBrute(ray);
+}
+
+// 原来的暴力求交方法
+HitPayload Renderer::TraceRayBrute(const Ray& ray)
+{
+	int closestObjIndex = -1;
+	float closestT = std::numeric_limits<float>::max();
+
 	for (size_t meshIdx = 0; meshIdx < m_ActiveScene->Meshes.size(); ++meshIdx) {
 		const auto& mesh = m_ActiveScene->Meshes[meshIdx];
 		for (size_t triIdx = 0; triIdx < mesh.Triangles.size(); ++triIdx) {
@@ -197,8 +225,10 @@ HitPayload Renderer::TraceRay(const Ray& ray)
 			}
 		}
 	}
+
 	if (closestObjIndex == -1)
 		return Miss(ray);
+
 	return ClosestTriangleHit(ray, closestT, closestObjIndex);
 }
 
@@ -290,8 +320,154 @@ glm::vec3 Renderer::CalculateBarycentricCoord(const glm::vec3& point, const Tria
 
 	return glm::vec3(u, v, w);
 }
-// 伽马校正
-glm::vec3  Renderer::ApplyGammaCorrection(const glm::vec3& color, float gamma)
+
+// BVH主入口
+HitPayload Renderer::TraceRayBVH(const Ray& ray, const BVHNode* node)
 {
-	return glm::pow(color, glm::vec3(1.0f / gamma));
+	HitPayload payload;
+	payload.HitDistance = std::numeric_limits<float>::max();
+
+	// 使用栈进行非递归遍历
+	std::stack<BVHTraversalInfo> nodeStack;
+	const BVHNode* currentNode = node;
+	float tMin = 0.0f, tMax = std::numeric_limits<float>::max();
+
+	while (currentNode || !nodeStack.empty())
+	{
+		if (currentNode)
+		{
+			// 检查当前节点的包围盒是否与光线相交
+			if (IntersectBVH(ray, currentNode, tMin, tMax))
+			{
+				if (currentNode->isLeaf)
+				{
+					// 叶子节点，检查所有三角形
+					HitPayload leafHit = FindClosestHit(ray, currentNode);
+					if (leafHit.HitDistance < payload.HitDistance)
+					{
+						payload = leafHit;
+					}
+					// 处理完叶子节点后从栈中取下一个节点
+					if (!nodeStack.empty())
+					{
+						currentNode = nodeStack.top().node;
+						tMin = nodeStack.top().tMin;
+						nodeStack.pop();
+					}
+					else
+					{
+						currentNode = nullptr;
+					}
+				}
+				else
+				{
+					// 内部节点，先处理较近的子节点
+					float leftTMin, leftTMax, rightTMin, rightTMax;
+					bool hitLeft = IntersectBVH(ray, currentNode->left.get(), leftTMin, leftTMax);
+					bool hitRight = IntersectBVH(ray, currentNode->right.get(), rightTMin, rightTMax);
+
+					if (hitLeft && hitRight)
+					{
+						// 两个子节点都相交，先处理较近的
+						if (leftTMin < rightTMin)
+						{
+							nodeStack.push({ currentNode->right.get(), rightTMin });
+							currentNode = currentNode->left.get();
+							tMin = leftTMin;
+						}
+						else
+						{
+							nodeStack.push({ currentNode->left.get(), leftTMin });
+							currentNode = currentNode->right.get();
+							tMin = rightTMin;
+						}
+					}
+					else if (hitLeft)
+					{
+						currentNode = currentNode->left.get();
+						tMin = leftTMin;
+					}
+					else if (hitRight)
+					{
+						currentNode = currentNode->right.get();
+						tMin = rightTMin;
+					}
+					else
+					{
+						if (!nodeStack.empty())
+						{
+							currentNode = nodeStack.top().node;
+							tMin = nodeStack.top().tMin;
+							nodeStack.pop();
+						}
+						else
+						{
+							currentNode = nullptr;
+						}
+					}
+				}
+			}
+			else
+			{
+				// 当前节点不相交，从栈中取下一个节点
+				if (!nodeStack.empty())
+				{
+					currentNode = nodeStack.top().node;
+					tMin = nodeStack.top().tMin;
+					nodeStack.pop();
+				}
+				else
+				{
+					currentNode = nullptr;
+				}
+			}
+		}
+	}
+
+	return payload.HitDistance == std::numeric_limits<float>::max() ? Miss(ray) : payload;
+}
+
+// 检查光线是否与BVH节点的包围盒相交
+bool Renderer::IntersectBVH(const Ray& ray, const BVHNode* node, float& tMin, float& tMax)
+{
+	if (!node) return false;
+	return node->bounds.IntersectRay(ray, tMin, tMax);
+}
+
+// 在叶子节点中查找最近的交点
+HitPayload Renderer::FindClosestHit(const Ray& ray, const BVHNode* node)
+{
+	HitPayload payload;
+	payload.HitDistance = std::numeric_limits<float>::max();
+
+	// 遍历叶子节点中的所有三角形
+	for (size_t triIdx : node->triangleIndices)
+	{
+		// 遍历所有网格找到对应的三角形
+		for (const auto& mesh : m_ActiveScene->Meshes)
+		{
+			if (triIdx < mesh.Triangles.size())
+			{
+				const Triangle& triangle = mesh.Triangles[triIdx];
+				float t;
+				if (RayTriangleIntersect(ray, triangle, t))
+				{
+					if (t > 0 && t < payload.HitDistance)
+					{
+						payload.HitDistance = t;
+						payload.WorldPosition = ray.Origin + ray.Direction * t;
+
+						// 计算法线
+						glm::vec3 edge1 = triangle.V1.Position - triangle.V0.Position;
+						glm::vec3 edge2 = triangle.V2.Position - triangle.V0.Position;
+						payload.WorldNormal = glm::normalize(glm::cross(edge1, edge2));
+
+						// 设置材质索引
+						payload.MaterialIndex = triangle.MaterialIndex;
+					}
+				}
+			}
+		}
+	}
+	return payload;
 }
