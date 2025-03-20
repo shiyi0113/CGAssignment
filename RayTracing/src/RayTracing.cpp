@@ -88,11 +88,12 @@ public:
 		m_Camera.SetPosition(eye);
 		m_Camera.SetDirection(glm::normalize(lookat - eye));
 		m_Camera.SetUpDirection(up);
+		m_Camera.SetVerticalFOV(m_fov);
 		// 打印相机参数
 		std::cout << "Camera Position: (" << m_Camera.GetPosition().x << ", " << m_Camera.GetPosition().y << ", " << m_Camera.GetPosition().z << ")\n";
 		std::cout << "Camera LookAt: (" << m_Camera.GetDirection().x << ", " << m_Camera.GetDirection().y << ", " << m_Camera.GetDirection().z << ")\n";
 		std::cout << "Camera UpDirection: (" << m_Camera.GetUpDirection().x << ", " << m_Camera.GetUpDirection().y << ", " << m_Camera.GetUpDirection().z << ")\n";
-		
+		std::cout << "Camera VerticalFOV: " << m_Camera.GetVerticalFOV() << "\n";
 		m_Reader.LoadModel(m_Scene, g_SceneFolderPath + "/" + Flodername + ".obj");
 		// 打印场景的网格、材质和三角形数
 		std::cout << "Scene has " << m_Scene.Meshes.size() << " meshes and " << m_Scene.Materials.size() << " materials\n";
@@ -133,7 +134,7 @@ private:
 Walnut::Application* Walnut::CreateApplication(int argc, char** argv)
 {
 	Walnut::ApplicationSpecification spec;
-	spec.Name = "Walnut Example";
+	spec.Name = "RayTracing";
 
 	Walnut::Application* app = new Walnut::Application(spec);
 	app->PushLayer<ExampleLayer>();
