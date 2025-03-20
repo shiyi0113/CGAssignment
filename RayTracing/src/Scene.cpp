@@ -90,3 +90,22 @@ std::unique_ptr<BVHNode> Scene::BuildBVHNode(std::vector<std::pair<size_t, size_
 
     return node;
 }
+void Scene::Clear()
+{
+    // 清空所有网格
+    for (auto& mesh : Meshes)
+    {
+        mesh.Triangles.clear();
+    }
+    Meshes.clear();
+
+    // 清空所有材质
+    for (auto& material : Materials)
+    {
+        material.DiffuseTextureData.clear();
+    }
+    Materials.clear();
+
+    // 重置BVH根节点
+    BVHRoot.reset();
+}

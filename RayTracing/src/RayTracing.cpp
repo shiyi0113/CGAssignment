@@ -24,31 +24,41 @@ public:
 	{
 		// 窗口1:Settings
 		ImGui::Begin("Settings");
-		ImGui::Text("Last render:%.3fms", m_LastRenderTime);
-		ImGui::Separator();
 		if (ImGui::Button("ReadFile"))
 		{
 			ReadFile();
 		}
-		ImGui::Text("Current Folder: %s", g_SceneFolderPath.empty() ? "Unspecified" : g_SceneFolderPath.c_str());
+		ImGui::Text("Current Scene: %s", SceneName);
 		ImGui::Separator();
 		ImGui::Text("Render Setting");
 		ImGui::Checkbox("Accumulate", &m_Renderer.GetSetting().Accumulate);
+		if (!start) 
+		{
+			if (ImGui::Button("Render"))
+			{
+				if (!g_SceneFolderPath.empty())
+					start = true;
+			}
+		}
+		else
+		{
+			if (ImGui::Button("Pause"))
+			{
+				start = false;
+			}
+		}
+		ImGui::SameLine();
 		if (ImGui::Button("Reset"))
 		{
 			m_Renderer.ResetFrameIndex();
-		}
-		ImGui::Separator();
-		if (ImGui::Button("Render"))
-		{
-			// Render();
-			if (!g_SceneFolderPath.empty())
-				start = true;
 		}
 		if (start)
 		{
 			Render();
 		}
+		ImGui::Separator();
+		ImGui::Text("Last render:%.3fms", m_LastRenderTime);
+		ImGui::Text("Rendering Times: %d", m_Renderer.GetFrameIndex() - 1);
 		ImGui::End();
 
 		// 窗口2:Viewport
@@ -76,6 +86,10 @@ public:
 			return;
 		m_Reader.SetSceneFolderPath(g_SceneFolderPath);
 		std::string Flodername = std::filesystem::path(g_SceneFolderPath).filename().string();
+		// 清空原来的场景
+		m_Scene.Clear();
+
+		SceneName = Flodername;
 		m_Reader.LoadXml(g_SceneFolderPath + "/" + Flodername + ".xml");
 
 		glm::vec3 eye = glm::vec3(m_Reader.getCamera().eye.x, m_Reader.getCamera().eye.y, m_Reader.getCamera().eye.z);
@@ -89,6 +103,7 @@ public:
 		m_Camera.SetDirection(glm::normalize(lookat - eye));
 		m_Camera.SetUpDirection(up);
 		m_Camera.SetVerticalFOV(m_fov);
+
 		// 打印相机参数
 		std::cout << "Camera Position: (" << m_Camera.GetPosition().x << ", " << m_Camera.GetPosition().y << ", " << m_Camera.GetPosition().z << ")\n";
 		std::cout << "Camera LookAt: (" << m_Camera.GetDirection().x << ", " << m_Camera.GetDirection().y << ", " << m_Camera.GetDirection().z << ")\n";
@@ -97,16 +112,6 @@ public:
 		m_Reader.LoadModel(m_Scene, g_SceneFolderPath + "/" + Flodername + ".obj");
 		// 打印场景的网格、材质和三角形数
 		std::cout << "Scene has " << m_Scene.Meshes.size() << " meshes and " << m_Scene.Materials.size() << " materials\n";
-		for (const auto& mesh : m_Scene.Meshes) {
-			std::cout << "【Mesh has " << mesh.Triangles.size() << " triangles】\n";
-			std::cout << "Material Albedo:" << m_Scene.Materials[mesh.MaterialIndex].Albedo.x << "," << m_Scene.Materials[mesh.MaterialIndex].Albedo.y << "," << m_Scene.Materials[mesh.MaterialIndex].Albedo.z <<std::endl;
-			std::cout << "Material SpecularColor:" << m_Scene.Materials[mesh.MaterialIndex].SpecularColor.x << "," << m_Scene.Materials[mesh.MaterialIndex].SpecularColor.y << "," << m_Scene.Materials[mesh.MaterialIndex].SpecularColor.z << std::endl;
-			std::cout << "Material Shininess:" << m_Scene.Materials[mesh.MaterialIndex].Shininess << std::endl;
-			std::cout << "Material TransmissionColor:" << m_Scene.Materials[mesh.MaterialIndex].TransmissionColor.x << "," << m_Scene.Materials[mesh.MaterialIndex].TransmissionColor.y << "," << m_Scene.Materials[mesh.MaterialIndex].TransmissionColor.z << std::endl;
-			std::cout << "Material RefractionIndex:" << m_Scene.Materials[mesh.MaterialIndex].RefractionIndex << std::endl;
-			std::cout << "Material Emission:" << m_Scene.Materials[mesh.MaterialIndex].GetEmission().x << "," << m_Scene.Materials[mesh.MaterialIndex].GetEmission().y << "," << m_Scene.Materials[mesh.MaterialIndex].GetEmission().z << std::endl;
-			std::cout << std::endl;
-		}
 		m_Renderer.ResetFrameIndex();
 	}
 
@@ -128,6 +133,7 @@ private:
 	ReadFiles m_Reader;
 	std::string g_SceneFolderPath;
 	bool start = false;
+	std::string SceneName = "Unspecified";
 };
 
 

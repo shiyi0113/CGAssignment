@@ -144,13 +144,13 @@ struct Scene
 {
 	std::vector<Material> Materials;
 	std::vector<Mesh> Meshes;
-
     std::unique_ptr<BVHNode> BVHRoot;  // BVH根节点
 
     // 构建BVH的方法
 	void BuildBVH();
-
+	void Clear();
 private:
     // 递归构建BVH节点
 	std::unique_ptr<BVHNode> BuildBVHNode(std::vector<std::pair<size_t, size_t>>& triangles,size_t start, size_t end);
+	
 };

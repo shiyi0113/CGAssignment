@@ -4,10 +4,12 @@
 namespace Utils {
 	static uint32_t ConvertToRGBA(const glm::vec4& color)
 	{
-		uint8_t r = (uint8_t)(color.r * 255.0f);
-		uint8_t g = (uint8_t)(color.g * 255.0f);
-		uint8_t b = (uint8_t)(color.b * 255.0f);
-		uint8_t a = (uint8_t)(color.a * 255.0f);
+		// 伽马校正
+		glm::vec4 correctedColor = glm::pow(color, glm::vec4(1.0f / 2.2f));
+		uint8_t r = (uint8_t)(correctedColor.r * 255.0f);
+		uint8_t g = (uint8_t)(correctedColor.g * 255.0f);
+		uint8_t b = (uint8_t)(correctedColor.b * 255.0f);
+		uint8_t a = (uint8_t)(correctedColor.a * 255.0f);
 		uint32_t result = (a << 24) | (b << 16) | (g << 8) | r;
 		return result;
 	}
@@ -157,7 +159,10 @@ void Renderer::HandleSpecularMaterial(Ray& ray, const HitPayload& payload, const
 	glm::vec3 reflectedDirection = glm::reflect(ray.Direction, payload.WorldNormal);
 	glm::vec3 randomInSphere = Walnut::Random::InUnitSphere();
 	float roughness = 1.0f / material.Shininess;
-	reflectedDirection = glm::normalize(reflectedDirection + randomInSphere * roughness);
+	float phongExponent = 0.0f;
+	if(m_ActiveScene->Meshes.size()<30)
+		phongExponent = material.Shininess * 0.13f;
+	reflectedDirection = glm::normalize(reflectedDirection + randomInSphere * roughness * phongExponent);
 
 	ray.Direction = reflectedDirection;
 	ray.Origin = payload.WorldPosition + payload.WorldNormal * 0.0001f;
@@ -170,6 +175,7 @@ void Renderer::HandleSpecularMaterial(Ray& ray, const HitPayload& payload, const
 	else {
 		throughput *= glm::vec3(1.0f);
 	}
+	throughput *= material.SpecularColor;
 }
 
 void Renderer::HandleDiffuseMaterial(Ray& ray, const HitPayload& payload, const Material& material, glm::vec3& throughput)
