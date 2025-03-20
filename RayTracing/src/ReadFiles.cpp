@@ -76,47 +76,37 @@ Material ReadFiles::ConvertAiMaterial(aiMaterial* aiMat)
     aiColor3D color;
     aiString matName;
 
-    // 获取材质名称
-    if (aiMat->Get(AI_MATKEY_NAME, matName) == AI_SUCCESS) {
-        std::cout << "\n[材质名称]" << matName.C_Str() << std::endl;
-    }
     // 基础颜色 (Kd)
     if (aiMat->Get(AI_MATKEY_COLOR_DIFFUSE, color) == AI_SUCCESS) {
         mat.Albedo = glm::vec3(color.r, color.g, color.b);
-        std::cout << "  - Albedo: (" << mat.Albedo.r << ", " << mat.Albedo.g << ", " << mat.Albedo.b << ")\n";
     }
 
     // 镜面反射颜色 (Ks)
     if (aiMat->Get(AI_MATKEY_COLOR_SPECULAR, color) == AI_SUCCESS) {
         mat.SpecularColor = glm::vec3(color.r, color.g, color.b);
-        std::cout << "  - SpecularColor: (" << mat.SpecularColor.r << ", " << mat.SpecularColor.g << ", " << mat.SpecularColor.b << ")\n";
     }
 
     // 光泽度 (Ns)
     float shininess;
     if (aiMat->Get(AI_MATKEY_SHININESS, shininess) == AI_SUCCESS) {
         mat.Shininess = shininess;
-        std::cout << "  - Roughness: " << mat.Shininess << "\n";
     }
 
     // 透射颜色 (Tr)
     if (aiMat->Get(AI_MATKEY_COLOR_TRANSPARENT, color) == AI_SUCCESS) {
         mat.TransmissionColor = glm::vec3(color.r, color.g, color.b);
-        std::cout << "  - TransmissionColor: (" << mat.TransmissionColor.r << ", " << mat.TransmissionColor.g << ", " << mat.TransmissionColor.b << ")\n";
     }
 
     // 折射率 (Ni)
     float refraction;
     if (aiMat->Get(AI_MATKEY_REFRACTI, refraction) == AI_SUCCESS) {
         mat.RefractionIndex = refraction;
-        std::cout << "  - RefractionIndex: " << mat.RefractionIndex << "\n";
     }
 
     // 漫反射纹理 (map_Kd)
     aiString texturePath;
     if (aiMat->GetTexture(aiTextureType_DIFFUSE, 0, &texturePath) == AI_SUCCESS) {
         mat.DiffuseTexturePath = texturePath.C_Str();
-        std::cout << "  - DiffuseTexturePath: " << mat.DiffuseTexturePath << "\n";
         mat.LoadTexture(m_SceneFolderPath);
     }
     return mat;
@@ -190,7 +180,5 @@ void ReadFiles::LoadModel(Scene& scene, const std::string& path)
 
         scene.Meshes.push_back(mesh);
     }
-    std::cout << "\n构建BVH加速结构..." << std::endl;
     scene.BuildBVH();
-    std::cout << "BVH构建完成！" << std::endl;
 }

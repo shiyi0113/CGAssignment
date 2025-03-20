@@ -89,7 +89,7 @@ void Renderer::Render(const Scene& scene, const Camera& camera)
 					if (completed % (totalPixels / 100) == 0) // 每完成1%打印一次
 					{
 						float progress = (float)completed / totalPixels * 100.0f;
-						printf("\r渲染进度: %.1f%%", progress);
+						printf("\r渲染进度[%d]: %.1f%%",m_FrameIndex, progress);
 						fflush(stdout);
 					}
 				});
